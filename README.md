@@ -1,4 +1,4 @@
-# AuraConv‑Multi — Multi‑Track Live Block Filter
+# AuraConv‑Multi — 12‑Track Live Block Filter
 
 <p align="center">
   <img src="https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white" alt="HTML5">
@@ -6,93 +6,107 @@
   <img src="https://img.shields.io/badge/Web_Audio_API-4A154B?logo=webaudio&logoColor=white" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-8A2BE2" alt="AudioWorklet">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT">
+  <img src="https://img.shields.io/badge/version-2.0.0-brightgreen" alt="Version">
 </p>
 
-**AuraConv‑Multi** is a real‑time, multi‑track audio processing tool that splits a live microphone input into **nine parallel channels**, each applying a different AuraConv block‑size filter.  
-Every track runs its own `AudioWorklet` processor, so you can hear (and see) exactly how a 10‑sample gate differs from a 100,000‑sample gate – all at the same time.  
-A global convolution reverb, dry/wet mix, and per‑track mute controls make it a powerful playground for rhythmic chopping, drone layering, and sound design experimentation.
+**AuraConv‑Multi** is a real‑time, multi‑track audio processor that splits a single microphone input into **12 parallel channels**, each processed with a different fixed‑length gate (block size from 10 samples up to 1,000,000 samples).  
+All tracks are mixed through a global convolution reverb, and every track has a **dual‑layer visualiser** (waveform + gate position indicator) so you can see exactly how the block‑size filtering is shaping the sound.
+
+No dependencies – just open the single HTML file in any modern browser and start experimenting.
 
 ---
 
-## Overview
+## 🚀 Overview
 
-AuraConv‑Multi takes a single microphone source, duplicates it across nine independent signal chains, and processes each copy with a distinct **block‑length gate** (10, 50, 100, 500, 1k, 5k, 10k, 50k, 100k samples).  
-All tracks are summed together through a shared convolution reverb and master gain stage.  
-
-The interface displays a **real‑time waveform** for every track, colour‑coded by block size, plus a dB level indicator – so you can immediately see the rhythmic texture each filter creates.
-
-Everything runs in the browser with **zero dependencies** – just open `index.html` and start experimenting.
+- **12 independent gate tracks** fed from one live microphone source.
+- Each track has a preset block size: 10, 50, 100, 500, 1k, 5k, 10k, 50k, 100k, 250k, 500k, 1M samples.
+- **Global controls**: block duration, invert mode, convolution reverb (decay & dry/wet), master volume.
+- **Per‑track mute** with smooth volume ramping.
+- **Live visualisation**: real‑time waveform, gate‑overlay bar showing active/silent zones, moving dot for current position, and dB level meter.
+- **Dark/light theme** (auto‑saved to localStorage).
+- **Keyboard shortcut** (`Space`) to start/stop audio.
+- **Single‑file** – zero build tools, zero dependencies.
 
 ---
 
-## Features
+## 🎛️ Features
 
 ### 🎤 Multi‑Track Live Processing
-- **9 independent tracks** – all fed from the same microphone input.
-- Each track uses a dedicated `AudioWorklet` processor with a fixed block‑length gate: 10, 50, 100, 500, 1k, 5k, 10k, 50k, and 100k samples.
-- **Per‑track mute** – instantly silence or restore any track without affecting others.
+- 12 parallel tracks, each with its own `AudioWorklet` processor.
+- Block sizes span from ultra‑fast 10‑sample chops to 1M‑sample (~22.7 s) drones.
+- All tracks share a single microphone input – no need for complex routing.
 
-### ✂️ Block Filter Parameters (Global)
-- **Block Duration** (1–99 %) – how much of each block is silenced.
-- **Invert Blocking** – swap the silent and live portions of each block, turning a gate into a chopper.
+### ✂️ Gate Controls (Global)
+- **Block Duration** (1–99%) – percentage of each block that passes audio.
+- **Invert Blocking** – swap the silent and active regions, turning a gate into a chopper.
+- Parameters are broadcast instantly to all worklets.
 
-### 🌌 Spatial & Ambience
-- **Convolution Reverb** – generated decaying‑noise impulse response with adjustable decay (0.5–12 s).
-- **Dry/Wet Mix** – blend the direct signal with the reverberant tail.
+### 🌌 Convolution Reverb
+- Generated noise‑based impulse response with adjustable **decay** (0.5–12 s).
+- **Dry/Wet mix** slider to blend the direct and reverberant signals.
+- The impulse response is regenerated whenever decay changes – no clicks or glitches.
 
-### 📊 Real‑Time Visualisation
-- **Per‑track waveform** canvas – each track’s output is drawn in real time.
-- **Colour‑coded tracks** – from cyan (10 sp) to purple (100k sp) for instant identification.
-- **dB level indicator** on each track, showing current signal strength.
+### 📊 Dual‑Layer Track Visualisation
+Each track card displays:
+- **Real‑time waveform** drawn in the track’s colour.
+- **Gate overlay bar** at the bottom that shows:
+  - Highlighted active zone (audio passing).
+  - A moving dot that tracks the current position inside the block.
+  - The entire bar darkens when the gate is closed (muted).
+- **GATE ON / GATE OFF** label with colour glow.
+- **dB level indicator** (RMS‑based) updated every frame.
 
-### 🎛️ Intuitive Controls
-- **Global sliders** for duration, decay, dry/wet, and master volume.
-- **Dark / Light theme** with persistent preference.
-- **Keyboard shortcut** (`Space`) to start/stop the audio engine.
-- **Single‑file HTML** – no build tools, no npm, no hassle.
+### 🔧 Global Controls
+- All controls are placed in a single bar for quick access.
+- Each slider shows its current value in real time.
+- **Invert** toggle changes appearance and updates all tracks simultaneously.
 
----
-
-## 🚀 Getting Started
-
-1. **Clone or download** the repository:
-   ```bash
-   git clone https://github.com/your-username/auraconv-multi.git
-   ```
-2. **Open `index.html`** in a modern browser (Chrome, Firefox, Edge, Safari).
-   > ⚠️ Microphone access requires a secure context (`localhost` or HTTPS).  
-   > Use a simple local server (e.g., `python -m http.server`) if opening the file directly doesn’t work.
-3. Click **“Start Audio”** and allow microphone access.
-4. Adjust the global controls and mute individual tracks to explore the effect of different block sizes.
+### 💡 Usability
+- Fully responsive grid layout (3×4 on desktop, 2×2 on mobile).
+- Theme toggle persists between sessions.
+- Graceful error handling for microphone access.
 
 ---
 
 ## 🧰 Technology Stack
 
-| Layer               | Technology                          |
+| Layer                | Technology                          |
 |----------------------|-------------------------------------|
 | Audio Processing     | Web Audio API, `AudioWorklet`       |
-| Visualisation        | HTML5 Canvas                        |
+| Visualisation        | HTML5 Canvas (per‑track)            |
 | UI                   | Vanilla HTML/CSS/JS, CSS Variables  |
-| Storage              | `localStorage` for theme preference |
-| Build                | None – pure single‑file HTML        |
+| Storage              | `localStorage` for theme            |
+| Build                | None – single self‑contained HTML file |
+
+---
+
+## 🚀 Getting Started
+
+1. **Download** the latest release or clone the repository.
+2. **Open `index.html`** in a modern browser (Chrome, Firefox, Edge, Safari).
+   > ⚠️ Microphone access requires a secure context (`localhost` or HTTPS).  
+   > Use a simple server like `python -m http.server` if opening directly doesn’t work.
+3. Click **“Start Audio”** and allow microphone access when prompted.
+4. Play with the global sliders and mute/unmute tracks to explore the multi‑layered gate effects.
 
 ---
 
 ## 🗺️ Roadmap
 
-Planned enhancements – contributions are very welcome!
+Planned improvements – contributions are very welcome!
 
-- [ ] **Custom Block Sizes** – let users assign any block size to each track.
-- [ ] **Solo Mode** – listen to one track in isolation with a single click.
-- [ ] **Pan & Spatialisation** – independent stereo panning per track.
-- [ ] **Per‑Track Effects** – add filters (LP/HP/BP), delay, or distortion to individual channels.
-- [ ] **Preset Management** – save/load full session configurations.
-- [ ] **Audio Recording** – capture the master output to WAV/MP3.
-- [ ] **Spectrum Analyser** – switch waveform view to frequency spectrum per track.
-- [ ] **MIDI Mapping** – control mutes, volume, and parameters via MIDI.
-- [ ] **Custom Impulse Responses** – upload your own IR files for the reverb.
-- [ ] **Responsive Mobile Layout** – optimised experience on phones and tablets.
+- [ ] **Per‑track volume & pan** – individual gain and stereo position per track.
+- [ ] **Solo buttons** – isolate a single track with one click.
+- [ ] **Custom block size assignment** – let users type any value per track.
+- [ ] **Per‑track block duration & invert** – independent gate settings for each channel.
+- [ ] **Save/load presets** – export the entire configuration as JSON.
+- [ ] **Frequency spectrum view** – toggle between waveform and FFT per track.
+- [ ] **Audio recording** – capture the master output to a WAV file.
+- [ ] **MIDI control** – map parameters to MIDI CC messages.
+- [ ] **Native desktop app** – Tauri wrapper for macOS/Windows/Linux.
+- [ ] **PWA support** – offline use and mobile installation.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to help.
 
 ---
 
@@ -100,13 +114,11 @@ Planned enhancements – contributions are very welcome!
 
 Contributions, issues, and feature requests are highly appreciated!
 
-1. Fork the repo.
-2. Create a feature branch (`git checkout -b feature/amazing-idea`).
-3. Commit your changes (`git commit -m 'Add amazing idea'`).
-4. Push to the branch (`git push origin feature/amazing-idea`).
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
 5. Open a Pull Request.
-
-Please make sure your code follows the existing style and is well tested.
 
 ---
 
