@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>AuraConv-Multi — Multi‑Track Block Filter</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --bg-elev: #131313;
+            --bg-card: #161616;
+            --bg-input: #1a1a1a;
+            --border: #242424;
+            --border-hov: #3a3a3a;
+            --text: #f0f0f0;
+            --text-muted: #888;
+            --text-dim: #555;
+            --accent: #667eea;
+            --success: #10b981;
+            --danger: #f5576c;
+            --warning: #f59e0b;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+            --track-10: #22d3bb;
+            --track-50: #2dd4bf;
+            --track-100: #34d399;
+            --track-500: #a3e635;
+            --track-1k: #facc15;
+            --track-5k: #fb923c;
+            --track-10k: #f87171;
+            --track-50k: #ef4444;
+            --track-100k: #c084fc;
+        }
+
+        [data-theme="light"] {
+            --bg: #ececec;
+            --bg-elev: #fff;
+            --bg-card: #f9f9f9;
+            --bg-input: #f0f0f0;
+            --border: #d4d4d4;
+            --border-hov: #aaa;
+            --text: #1a1a1a;
+            --text-muted: #666;
+            --text-dim: #999;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background var(--transition), color var(--transition);
+            overflow-x: hidden;
+        }
+
+        .app {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 12px 16px 20px;
+            max-width: 820px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            padding-top: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .title-block h1 {
+            font-size: 1.9rem;
+            font-weight: 200;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+        }
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        .theme-toggle {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            color: var(--text);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+        .theme-toggle:hover {
+            border-color: var(--border-hov);
+            transform: scale(1.05);
+        }
+
+        .warning {
+            background: rgba(245, 87, 108, 0.08);
+            border: 1px solid rgba(245, 87, 108, 0.35);
+            color: var(--danger);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            text-align: center;
+            font-size: 0.82rem;
+            margin-bottom: 12px;
+            display: none;
+        }
+        .warning.show {
+            display: block;
+        }
+
+        /* ── Global Controls ── */
+        .global-controls {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px 16px;
+            margin-bottom: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 18px;
+            align-items: center;
+            transition: var(--transition);
+        }
+        .global-controls label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .global-controls input[type="range"] {
+            width: 90px;
+            height: 5px;
+            border-radius: 3px;
+            background: var(--bg-input);
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+            outline: none;
+        }
+        .global-controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 1px 6px rgba(102, 126, 234, 0.35);
+        }
+        .global-val {
+            font-size: 0.72rem;
+            color: var(--accent);
+            font-weight: 700;
+            font-family: 'SF Mono', 'Courier New', monospace;
+            min-width: 36px;
+            text-align: right;
+        }
+        .toggle-sm {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            transition: var(--transition);
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .toggle-sm.active {
+            background: var(--success);
+            border-color: var(--success);
+            color: #fff;
+        }
+        .btn-start {
+            padding: 10px 22px;
+            border-radius: 24px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            color: #fff;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            transition: var(--transition);
+            letter-spacing: 0.03em;
+        }
+        .btn-start:hover {
+            opacity: 0.9;
+        }
+        .btn-start.stop {
+            background: linear-gradient(135deg, #f5576c, #c0392b);
+        }
+
+        /* ── Track Grid ── */
+        .track-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 680px) {
+            .track-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+        }
+        @media (max-width: 420px) {
+            .track-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+            .global-controls {
+                gap: 6px 10px;
+                padding: 10px 12px;
+            }
+            .global-controls input[type="range"] {
+                width: 60px;
+            }
+        }
+
+        .track-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .track-card.muted {
+            opacity: 0.5;
+            filter: grayscale(0.4);
+        }
+        .track-card:hover {
+            border-color: var(--border-hov);
+        }
+        .track-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 7px 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+            gap: 6px;
+        }
+        .track-label {
+            font-size: 0.73rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            font-family: 'SF Mono', 'Courier New', monospace;
+            color: var(--text);
+        }
+        .track-color-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .track-mute-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            color: var(--text);
+            flex-shrink: 0;
+        }
+        .track-mute-btn:hover {
+            border-color: var(--border-hov);
+        }
+        .track-mute-btn.muted {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: #fff;
+        }
+        .track-canvas-wrap {
+            position: relative;
+            flex: 1;
+            min-height: 70px;
+            background: #0a0a0a;
+            cursor: default;
+        }
+        [data-theme="light"] .track-canvas-wrap {
+            background: #e8e8e8;
+        }
+        .track-canvas-wrap canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .track-level-indicator {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            font-family: 'SF Mono', 'Courier New', monospace;
+            pointer-events: none;
+        }
+
+        /* ── Footer ── */
+        .footer-info {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+            line-height: 1.5;
+            padding-top: 4px;
+        }
+        .kbd {
+            display: inline-block;
+            padding: 1px 6px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div class="title-block">
+                <h1>AuraConv‑Multi</h1>
+                <div class="subtitle">9‑Track Block Filter · Single Mic Source</div>
+            </div>
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀</button>
+        </header>
+
+        <div class="warning" id="warning"></div>
+
+        <!-- Global Controls -->
+        <div class="global-controls" id="globalControls">
+            <label>Duration
+                <input type="range" id="durSlider" min="1" max="99" value="50">
+                <span class="global-val" id="durVal">50%</span>
+            </label>
+            <button class="toggle-sm" id="invertBtn">Invert</button>
+            <label>Decay
+                <input type="range" id="decaySlider" min="0.5" max="12" value="3" step="0.1">
+                <span class="global-val" id="decayVal">3.0s</span>
+            </label>
+            <label>D/W
+                <input type="range" id="dwSlider" min="0" max="100" value="40">
+                <span class="global-val" id="dwVal">40%</span>
+            </label>
+            <label>Master
+                <input type="range" id="masterSlider" min="0" max="100" value="70">
+                <span class="global-val" id="masterVal">70%</span>
+            </label>
+            <button class="btn-start" id="startBtn">Start Audio</button>
+        </div>
+
+        <!-- 3×3 Track Grid -->
+        <div class="track-grid" id="trackGrid">
+            <!-- Generated by JS -->
+        </div>
+
+        <div class="footer-info">
+            Press <span class="kbd">Space</span> to toggle · Each track applies a different block‑size AuraConv filter to the same mic input
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════
+        //  AUDIOWORKLET PROCESSOR (inline Blob)
+        // ═══════════════════════════════════════════════════════════
+        const workletCode = `
+class BlockProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    this.blockSamples = options.processorOptions?.blockSamples || 50;
+    this.blockDuration = 0.5;
+    this.invertBlocking = false;
+    this.sampleCounter = 0;
+    this.port.onmessage = (e) => {
+      if (e.data.key === 'blockDuration') this.blockDuration = e.data.value;
+      if (e.data.key === 'invertBlocking') this.invertBlocking = e.data.value;
+    };
+  }
+  process(inputs, outputs) {
+    const inData = inputs[0]?.[0];
+    const outData = outputs[0]?.[0];
+    if (!inData || !outData) return true;
+    const bs = this.blockSamples;
+    const blockLen = Math.max(0, Math.round(bs * this.blockDuration));
+    for (let i = 0; i < outData.length; i++) {
+      this.sampleCounter++;
+      const pos = this.sampleCounter % bs;
+      const inZone = pos < blockLen;
+      const mute = this.invertBlocking ? !inZone : inZone;
+      outData[i] = mute ? 0 : inData[i];
+    }
+    return true;
+  }
+}
+registerProcessor('block-processor', BlockProcessor);
+`;
+
+        // ═══════════════════════════════════════════════════════════
+        //  TRACK DEFINITIONS
+        // ═══════════════════════════════════════════════════════════
+        const TRACK_BLOCK_SIZES = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
+        const TRACK_COLORS = [
+            '#22d3bb', '#2dd4bf', '#34d399', '#a3e635', '#facc15',
+            '#fb923c', '#f87171', '#ef4444', '#c084fc'
+        ];
+        const TRACK_LABELS = ['10', '50', '100', '500', '1k', '5k', '10k', '50k', '100k'];
+
+        // ═══════════════════════════════════════════════════════════
+        //  STATE
+        // ═══════════════════════════════════════════════════════════
+        const state = {
+            audioContext: null,
+            micStream: null,
+            micNode: null,
+            isRunning: false,
+            workletModuleLoaded: false,
+            // Per-track nodes
+            tracks: [], // { worklet, analyser, gain, muted, canvas, ctx, color, blockSamples, label }
+            // Master nodes
+            masterGain: null,
+            convolver: null,
+            dryGain: null,
+            wetGain: null,
+            // Global params
+            blockDuration: 0.5,
+            invertBlocking: false,
+            decayTime: 3.0,
+            dryWetMix: 0.4,
+            masterVolume: 0.7,
+            // Animation
+            animFrameId: null,
+            frameSkip: 0,
+        };
+
+        // ═══════════════════════════════════════════════════════════
+        //  DOM REFS
+        // ═══════════════════════════════════════════════════════════
+        const $ = (id) => document.getElementById(id);
+        const dom = {
+            trackGrid: $('trackGrid'),
+            startBtn: $('startBtn'),
+            warning: $('warning'),
+            themeToggle: $('themeToggle'),
+            durSlider: $('durSlider'),
+            durVal: $('durVal'),
+            invertBtn: $('invertBtn'),
+            decaySlider: $('decaySlider'),
+            decayVal: $('decayVal'),
+            dwSlider: $('dwSlider'),
+            dwVal: $('dwVal'),
+            masterSlider: $('masterSlider'),
+            masterVal: $('masterVal'),
+        };
+
+        // ═══════════════════════════════════════════════════════════
+        //  BUILD TRACK UI
+        // ═══════════════════════════════════════════════════════════
+        function buildTrackUI() {
+            dom.trackGrid.innerHTML = '';
+            TRACK_BLOCK_SIZES.forEach((bs, i) => {
+                const card = document.createElement('div');
+                card.className = 'track-card';
+                card.dataset.index = i;
+                card.innerHTML = `
+                <div class="track-card-header">
+                  <span class="track-color-dot" style="background:${TRACK_COLORS[i]};box-shadow:0 0 6px ${TRACK_COLORS[i]}44;"></span>
+                  <span class="track-label">${TRACK_LABELS[i]} sp</span>
+                  <button class="track-mute-btn" data-index="${i}" title="Mute track">M</button>
+                </div>
+                <div class="track-canvas-wrap">
+                  <canvas></canvas>
+                  <span class="track-level-indicator">–– dB</span>
+                </div>`;
+                dom.trackGrid.appendChild(card);
+
+                const canvas = card.querySelector('canvas');
+                const ctx = canvas.getContext('2d');
+
+                // Initialize track state
+                state.tracks[i] = {
+                    worklet: null,
+                    analyser: null,
+                    gain: null,
+                    muted: false,
+                    canvas,
+                    ctx,
+                    color: TRACK_COLORS[i],
+                    blockSamples: bs,
+                    label: TRACK_LABELS[i],
+                    card,
+                };
+
+                // Mute button handler
+                const muteBtn = card.querySelector('.track-mute-btn');
+                muteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleTrackMute(i);
+                });
+
+                // Click card to solo? No, keep it simple with just mute.
+            });
+            resizeAllCanvases();
+        }
+
+        function toggleTrackMute(index) {
+            const t = state.tracks[index];
+            if (!t) return;
+            t.muted = !t.muted;
+            if (t.gain && state.audioContext) {
+                const now = state.audioContext.currentTime;
+                t.gain.gain.setTargetAtTime(t.muted ? 0 : 0.7, now, 0.015);
+            }
+            t.card.classList.toggle('muted', t.muted);
+            const muteBtn = t.card.querySelector('.track-mute-btn');
+            if (muteBtn) {
+                muteBtn.classList.toggle('muted', t.muted);
+                muteBtn.textContent = t.muted ? 'U' : 'M';
+            }
+        }
+
+        function resizeAllCanvases() {
+            state.tracks.forEach(t => {
+                if (!t.canvas) return;
+                const dpr = window.devicePixelRatio || 1;
+                const wrap = t.canvas.parentElement;
+                if (!wrap) return;
+                const rect = wrap.getBoundingClientRect();
+                const w = rect.width || 180;
+                const h = rect.height || 80;
+                t.canvas.width = w * dpr;
+                t.canvas.height = h * dpr;
+                t.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                t.ctx.scale(dpr, dpr);
+                t._displayW = w;
+                t._displayH = h;
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  AUDIO SETUP
+        // ═══════════════════════════════════════════════════════════
+        async function startAudio() {
+            try {
+                if (!state.audioContext) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    state.audioContext = new AC();
+                    state.workletModuleLoaded = false;
+                }
+                const ctx = state.audioContext;
+                if (ctx.state === 'suspended') await ctx.resume();
+
+                // Load worklet module once
+                if (!state.workletModuleLoaded) {
+                    const blob = new Blob([workletCode], { type: 'application/javascript' });
+                    const url = URL.createObjectURL(blob);
+                    try {
+                        await ctx.audioWorklet.addModule(url);
+                        state.workletModuleLoaded = true;
+                    } catch (err) {
+                        if (err.message && err.message.includes('already registered')) {
+                            state.workletModuleLoaded = true;
+                        } else {
+                            throw err;
+                        }
+                    }
+                    URL.revokeObjectURL(url);
+                }
+
+                // Get mic
+                state.micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                });
+                state.micNode = ctx.createMediaStreamSource(state.micStream);
+
+                // Create master nodes
+                state.masterGain = ctx.createGain();
+                state.masterGain.gain.value = state.masterVolume;
+
+                state.dryGain = ctx.createGain();
+                state.wetGain = ctx.createGain();
+                state.dryGain.gain.value = 1 - state.dryWetMix;
+                state.wetGain.gain.value = state.dryWetMix;
+
+                state.convolver = ctx.createConvolver();
+                state.convolver.buffer = createImpulseResponse(state.decayTime);
+
+                // Connect master: masterGain → [dry, convolver→wet] → destination
+                state.masterGain.connect(state.dryGain);
+                state.masterGain.connect(state.convolver);
+                state.convolver.connect(state.wetGain);
+                state.dryGain.connect(ctx.destination);
+                state.wetGain.connect(ctx.destination);
+
+                // Create per-track nodes
+                for (let i = 0; i < TRACK_BLOCK_SIZES.length; i++) {
+                    const t = state.tracks[i];
+                    const bs = TRACK_BLOCK_SIZES[i];
+
+                    // Worklet node
+                    const wn = new AudioWorkletNode(ctx, 'block-processor', {
+                        numberOfInputs: 1,
+                        numberOfOutputs: 1,
+                        outputChannelCount: [1],
+                        channelCount: 1,
+                        channelCountMode: 'explicit',
+                        processorOptions: { blockSamples: bs },
+                    });
+                    // Send current global params
+                    wn.port.postMessage({ key: 'blockDuration', value: state.blockDuration });
+                    wn.port.postMessage({ key: 'invertBlocking', value: state.invertBlocking });
+                    t.worklet = wn;
+
+                    // Analyser
+                    const an = ctx.createAnalyser();
+                    an.fftSize = 128;
+                    an.smoothingTimeConstant = 0.6;
+                    t.analyser = an;
+
+                    // Track gain
+                    const gn = ctx.createGain();
+                    gn.gain.value = t.muted ? 0 : 0.7;
+                    t.gain = gn;
+
+                    // Connect: mic → worklet → analyser → gain → masterGain
+                    state.micNode.connect(wn);
+                    wn.connect(an);
+                    an.connect(gn);
+                    gn.connect(state.masterGain);
+                }
+
+                state.isRunning = true;
+                dom.startBtn.textContent = 'Stop Audio';
+                dom.startBtn.classList.add('stop');
+                dom.warning.classList.remove('show');
+                updateAllMuteButtons();
+                startVisualization();
+            } catch (err) {
+                console.error('Audio setup error:', err);
+                dom.warning.classList.add('show');
+                dom.warning.textContent = 'Error: ' + err.message +
+                    '. Ensure mic access is allowed (HTTPS/localhost).';
+            }
+        }
+
+        function stopAudio() {
+            if (state.animFrameId) {
+                cancelAnimationFrame(state.animFrameId);
+                state.animFrameId = null;
+            }
+            // Disconnect & cleanup tracks
+            state.tracks.forEach(t => {
+                if (t.worklet) { try { t.worklet.disconnect(); } catch {} }
+                if (t.analyser) { try { t.analyser.disconnect(); } catch {} }
+                if (t.gain) { try { t.gain.disconnect(); } catch {} }
+                t.worklet = null;
+                t.analyser = null;
+                t.gain = null;
+            });
+            // Disconnect master
+            [state.masterGain, state.dryGain, state.wetGain, state.convolver].forEach(n => {
+                if (n) { try { n.disconnect(); } catch {} }
+            });
+            state.masterGain = null;
+            state.dryGain = null;
+            state.wetGain = null;
+            state.convolver = null;
+            // Stop mic
+            if (state.micStream) {
+                state.micStream.getTracks().forEach(t => t.stop());
+                state.micStream = null;
+            }
+            if (state.micNode) { try { state.micNode.disconnect(); } catch {} }
+            state.micNode = null;
+
+            state.isRunning = false;
+            dom.startBtn.textContent = 'Start Audio';
+            dom.startBtn.classList.remove('stop');
+            // Clear canvases
+            state.tracks.forEach(t => {
+                if (t.ctx && t._displayW) {
+                    t.ctx.clearRect(0, 0, t._displayW, t._displayH);
+                    drawIdleWaveform(t);
+                }
+            });
+            updateAllMuteButtons();
+        }
+
+        function createImpulseResponse(duration) {
+            const sr = state.audioContext.sampleRate;
+            const len = Math.max(1, Math.floor(sr * duration));
+            const buf = state.audioContext.createBuffer(2, len, sr);
+            for (let ch = 0; ch < 2; ch++) {
+                const d = buf.getChannelData(ch);
+                for (let i = 0; i < len; i++) {
+                    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+                }
+            }
+            return buf;
+        }
+
+        function updateAllMuteButtons() {
+            state.tracks.forEach((t, i) => {
+                const btn = t.card?.querySelector('.track-mute-btn');
+                if (btn) {
+                    btn.classList.toggle('muted', t.muted);
+                    btn.textContent = t.muted ? 'U' : 'M';
+                }
+                if (t.card) t.card.classList.toggle('muted', t.muted);
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  GLOBAL PARAM UPDATES
+        // ═══════════════════════════════════════════════════════════
+        function broadcastParam(key, value) {
+            state.tracks.forEach(t => {
+                if (t.worklet) {
+                    t.worklet.port.postMessage({ key, value });
+                }
+            });
+        }
+
+        function updateBlockDuration(val) {
+            state.blockDuration = val;
+            dom.durVal.textContent = Math.round(val * 100) + '%';
+            broadcastParam('blockDuration', val);
+        }
+
+        function updateInvertBlocking(val) {
+            state.invertBlocking = val;
+            dom.invertBtn.classList.toggle('active', val);
+            broadcastParam('invertBlocking', val);
+        }
+
+        function updateDecayTime(val) {
+            state.decayTime = val;
+            dom.decayVal.textContent = val.toFixed(1) + 's';
+            if (state.convolver && state.audioContext) {
+                state.convolver.buffer = createImpulseResponse(val);
+            }
+        }
+
+        function updateDryWetMix(val) {
+            state.dryWetMix = val;
+            dom.dwVal.textContent = Math.round(val * 100) + '%';
+            if (state.dryGain && state.wetGain && state.audioContext) {
+                const now = state.audioContext.currentTime;
+                state.dryGain.gain.setTargetAtTime(1 - val, now, 0.02);
+                state.wetGain.gain.setTargetAtTime(val, now, 0.02);
+            }
+        }
+
+        function updateMasterVolume(val) {
+            state.masterVolume = val;
+            dom.masterVal.textContent = Math.round(val * 100) + '%';
+            if (state.masterGain && state.audioContext) {
+                state.masterGain.gain.setTargetAtTime(val, state.audioContext.currentTime, 0.02);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  VISUALIZATION
+        // ═══════════════════════════════════════════════════════════
+        function drawIdleWaveform(t) {
+            const ctx = t.ctx;
+            const w = t._displayW || 180;
+            const h = t._displayH || 80;
+            ctx.clearRect(0, 0, w, h);
+            ctx.strokeStyle = t.color + '44';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, h / 2);
+            ctx.lineTo(w, h / 2);
+            ctx.stroke();
+        }
+
+        function startVisualization() {
+            function loop() {
+                state.animFrameId = requestAnimationFrame(loop);
+                state.frameSkip = (state.frameSkip + 1) % 2;
+                if (state.frameSkip !== 0) return; // ~30fps for efficiency
+
+                state.tracks.forEach(t => {
+                    if (!t.analyser || !t.ctx || !t._displayW) return;
+                    const w = t._displayW;
+                    const h = t._displayH;
+                    const ctx = t.ctx;
+                    const an = t.analyser;
+                    const bufLen = an.fftSize;
+                    const timeData = new Uint8Array(bufLen);
+
+                    an.getByteTimeDomainData(timeData);
+
+                    // Compute RMS for level indicator
+                    let sum = 0;
+                    for (let i = 0; i < bufLen; i++) {
+                        const v = (timeData[i] - 128) / 128;
+                        sum += v * v;
+                    }
+                    const rms = Math.sqrt(sum / bufLen);
+                    const db = rms > 0.001 ? Math.round(20 * Math.log10(rms)) : -60;
+                    const levelEl = t.card?.querySelector('.track-level-indicator');
+                    if (levelEl) {
+                        levelEl.textContent = (db <= -60 ? '––' : db) + ' dB';
+                        levelEl.style.color = rms > 0.05 ? t.color : 'var(--text-dim)';
+                    }
+
+                    // Clear
+                    ctx.clearRect(0, 0, w, h);
+                    // Subtle grid line at center
+                    ctx.strokeStyle = t.muted ? '#333' : (t.color + '22');
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, h / 2);
+                    ctx.lineTo(w, h / 2);
+                    ctx.stroke();
+
+                    // Draw waveform
+                    ctx.strokeStyle = t.muted ? '#444' : t.color;
+                    ctx.lineWidth = t.muted ? 0.8 : 1.4;
+                    ctx.shadowColor = t.muted ? 'transparent' : (t.color + '88');
+                    ctx.shadowBlur = t.muted ? 0 : 4;
+                    ctx.beginPath();
+                    for (let i = 0; i < bufLen; i++) {
+                        const x = (i / bufLen) * w;
+                        const y = (timeData[i] / 255) * h;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                });
+            }
+            loop();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  EVENT LISTENERS
+        // ═══════════════════════════════════════════════════════════
+        function setupEventListeners() {
+            // Theme
+            const savedTheme = localStorage.getItem('auraconv-multi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            dom.themeToggle.textContent = savedTheme === 'dark' ? '☀' : '🌙';
+            dom.themeToggle.addEventListener('click', () => {
+                const cur = document.documentElement.getAttribute('data-theme');
+                const nxt = cur === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', nxt);
+                localStorage.setItem('auraconv-multi-theme', nxt);
+                dom.themeToggle.textContent = nxt === 'dark' ? '☀' : '🌙';
+                document.querySelector('meta[name="theme-color"]')
+                    ?.setAttribute('content', nxt === 'dark' ? '#0a0a0a' : '#ececec');
+            });
+
+            // Start/Stop
+            dom.startBtn.addEventListener('click', () => {
+                if (state.isRunning) stopAudio();
+                else startAudio();
+            });
+
+            // Keyboard
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+                    e.preventDefault();
+                    dom.startBtn.click();
+                }
+            });
+
+            // Global sliders
+            dom.durSlider.addEventListener('input', (e) => updateBlockDuration(parseInt(e.target.value) / 100));
+            dom.invertBtn.addEventListener('click', () => updateInvertBlocking(!state.invertBlocking));
+            dom.decaySlider.addEventListener('input', (e) => updateDecayTime(parseFloat(e.target.value)));
+            dom.dwSlider.addEventListener('input', (e) => updateDryWetMix(parseInt(e.target.value) / 100));
+            dom.masterSlider.addEventListener('input', (e) => updateMasterVolume(parseInt(e.target.value) / 100));
+
+            // Resize
+            window.addEventListener('resize', () => {
+                resizeAllCanvases();
+                // Redraw idle waveforms if stopped
+                if (!state.isRunning) {
+                    state.tracks.forEach(t => drawIdleWaveform(t));
+                }
+            });
+
+            // Background handling
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden' && state.isRunning) {
+                    // Audio continues in background; no action needed
+                }
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  INIT
+        // ═══════════════════════════════════════════════════════════
+        function init() {
+            // Initialize tracks array
+            state.tracks = new Array(TRACK_BLOCK_SIZES.length).fill(null).map(() => ({
+                worklet: null,
+                analyser: null,
+                gain: null,
+                muted: false,
+                canvas: null,
+                ctx: null,
+                color: '#888',
+                blockSamples: 50,
+                label: '',
+                card: null,
+                _displayW: 180,
+                _displayH: 80,
+            }));
+            buildTrackUI();
+            setupEventListeners();
+            // Small delay to ensure layout is computed, then draw idle waveforms
+            setTimeout(() => {
+                resizeAllCanvases();
+                state.tracks.forEach(t => drawIdleWaveform(t));
+            }, 100);
+            // Initial global UI state
+            dom.invertBtn.classList.toggle('active', state.invertBlocking);
+        }
+
+        init();
+    </script>
+</body>
+</html>
