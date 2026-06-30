@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <meta name="theme-color" content="#0a0a0a">
-    <title>AuraConv-Multi — Multi‑Track Block Filter</title>
+    <title>AuraConv‑Multi v2 — 12‑Track Block Filter</title>
     <style>
         :root {
             --bg: #0a0a0a;
@@ -19,21 +19,10 @@
             --accent: #667eea;
             --success: #10b981;
             --danger: #f5576c;
-            --warning: #f59e0b;
             --radius: 12px;
             --radius-sm: 8px;
             --transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-            --track-10: #22d3bb;
-            --track-50: #2dd4bf;
-            --track-100: #34d399;
-            --track-500: #a3e635;
-            --track-1k: #facc15;
-            --track-5k: #fb923c;
-            --track-10k: #f87171;
-            --track-50k: #ef4444;
-            --track-100k: #c084fc;
         }
-
         [data-theme="light"] {
             --bg: #ececec;
             --bg-elev: #fff;
@@ -45,14 +34,12 @@
             --text-muted: #666;
             --text-dim: #999;
         }
-
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
@@ -63,28 +50,26 @@
             transition: background var(--transition), color var(--transition);
             overflow-x: hidden;
         }
-
         .app {
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 12px 16px 20px;
-            max-width: 820px;
+            padding: 10px 14px 18px;
+            max-width: 960px;
             margin: 0 auto;
             width: 100%;
         }
-
         header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 14px;
-            padding-top: 8px;
+            margin-bottom: 10px;
+            padding-top: 6px;
             flex-wrap: wrap;
             gap: 8px;
         }
         .title-block h1 {
-            font-size: 1.9rem;
+            font-size: 1.7rem;
             font-weight: 200;
             letter-spacing: -0.03em;
             background: linear-gradient(135deg, #667eea, #764ba2);
@@ -95,19 +80,19 @@
         }
         .subtitle {
             color: var(--text-muted);
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            margin-top: 2px;
+            margin-top: 1px;
         }
         .theme-toggle {
             background: var(--bg-elev);
             border: 1px solid var(--border);
             color: var(--text);
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            font-size: 1.1rem;
+            font-size: 1rem;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -118,7 +103,6 @@
             border-color: var(--border-hov);
             transform: scale(1.05);
         }
-
         .warning {
             background: rgba(245, 87, 108, 0.08);
             border: 1px solid rgba(245, 87, 108, 0.35);
@@ -126,39 +110,37 @@
             padding: 10px 14px;
             border-radius: var(--radius-sm);
             text-align: center;
-            font-size: 0.82rem;
-            margin-bottom: 12px;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
             display: none;
         }
         .warning.show {
             display: block;
         }
-
-        /* ── Global Controls ── */
         .global-controls {
             background: var(--bg-elev);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 12px 16px;
-            margin-bottom: 14px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
             display: flex;
             flex-wrap: wrap;
-            gap: 10px 18px;
+            gap: 8px 14px;
             align-items: center;
             transition: var(--transition);
         }
         .global-controls label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             white-space: nowrap;
         }
         .global-controls input[type="range"] {
-            width: 90px;
+            width: 80px;
             height: 5px;
             border-radius: 3px;
             background: var(--bg-input);
@@ -169,32 +151,32 @@
         }
         .global-controls input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
             border-radius: 50%;
             background: var(--accent);
             cursor: pointer;
-            box-shadow: 0 1px 6px rgba(102, 126, 234, 0.35);
+            box-shadow: 0 1px 5px rgba(102, 126, 234, 0.3);
         }
         .global-val {
-            font-size: 0.72rem;
+            font-size: 0.68rem;
             color: var(--accent);
             font-weight: 700;
             font-family: 'SF Mono', 'Courier New', monospace;
-            min-width: 36px;
+            min-width: 32px;
             text-align: right;
         }
         .toggle-sm {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.72rem;
+            padding: 5px 11px;
+            border-radius: 16px;
+            font-size: 0.68rem;
             cursor: pointer;
             border: 1px solid var(--border);
             background: transparent;
             color: var(--text);
             transition: var(--transition);
             font-weight: 600;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.03em;
         }
         .toggle-sm.active {
             background: var(--success);
@@ -202,9 +184,9 @@
             color: #fff;
         }
         .btn-start {
-            padding: 10px 22px;
-            border-radius: 24px;
-            font-size: 0.85rem;
+            padding: 9px 20px;
+            border-radius: 20px;
+            font-size: 0.8rem;
             font-weight: 700;
             cursor: pointer;
             border: none;
@@ -220,30 +202,33 @@
             background: linear-gradient(135deg, #f5576c, #c0392b);
         }
 
-        /* ── Track Grid ── */
+        /* ── 3×4 Track Grid ── */
         .track-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 10px;
         }
-        @media (max-width: 680px) {
+        @media (max-width: 780px) {
             .track-grid {
                 grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-            }
-        }
-        @media (max-width: 420px) {
-            .track-grid {
-                grid-template-columns: 1fr 1fr;
                 gap: 6px;
             }
+        }
+        @media (max-width: 440px) {
+            .track-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 5px;
+            }
             .global-controls {
-                gap: 6px 10px;
-                padding: 10px 12px;
+                gap: 5px 8px;
+                padding: 8px 10px;
             }
             .global-controls input[type="range"] {
-                width: 60px;
+                width: 50px;
+            }
+            .global-controls label {
+                font-size: 0.65rem;
             }
         }
 
@@ -259,7 +244,7 @@
         }
         .track-card.muted {
             opacity: 0.5;
-            filter: grayscale(0.4);
+            filter: grayscale(0.35);
         }
         .track-card:hover {
             border-color: var(--border-hov);
@@ -268,38 +253,41 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 7px 10px;
-            background: rgba(255, 255, 255, 0.02);
+            padding: 5px 8px;
+            background: rgba(255, 255, 255, 0.015);
             border-bottom: 1px solid var(--border);
-            gap: 6px;
+            gap: 4px;
+            min-height: 32px;
         }
         .track-label {
-            font-size: 0.73rem;
+            font-size: 0.68rem;
             font-weight: 700;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.03em;
             font-family: 'SF Mono', 'Courier New', monospace;
             color: var(--text);
+            white-space: nowrap;
         }
         .track-color-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
             flex-shrink: 0;
         }
         .track-mute-btn {
-            width: 28px;
-            height: 28px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             border: 1px solid var(--border);
             background: transparent;
             cursor: pointer;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: var(--transition);
             color: var(--text);
             flex-shrink: 0;
+            font-weight: 700;
         }
         .track-mute-btn:hover {
             border-color: var(--border-hov);
@@ -312,44 +300,62 @@
         .track-canvas-wrap {
             position: relative;
             flex: 1;
-            min-height: 70px;
-            background: #0a0a0a;
+            min-height: 90px;
+            background: #080808;
             cursor: default;
         }
         [data-theme="light"] .track-canvas-wrap {
-            background: #e8e8e8;
+            background: #e6e6e6;
         }
         .track-canvas-wrap canvas {
             display: block;
             width: 100%;
             height: 100%;
         }
-        .track-level-indicator {
+        .track-info-overlay {
             position: absolute;
-            bottom: 4px;
+            top: 4px;
             right: 6px;
-            font-size: 0.6rem;
+            font-size: 0.58rem;
             color: var(--text-dim);
             font-family: 'SF Mono', 'Courier New', monospace;
             pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
         }
-
-        /* ── Footer ── */
+        .gate-status {
+            font-weight: 700;
+            font-size: 0.6rem;
+            letter-spacing: 0.05em;
+            transition: color 0.15s;
+        }
+        .gate-status.on {
+            color: #10b981;
+            text-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+        }
+        .gate-status.off {
+            color: #555;
+        }
+        [data-theme="light"] .gate-status.off {
+            color: #999;
+        }
         .footer-info {
             text-align: center;
             color: var(--text-dim);
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             line-height: 1.5;
-            padding-top: 4px;
+            padding-top: 2px;
         }
         .kbd {
             display: inline-block;
-            padding: 1px 6px;
+            padding: 1px 5px;
             background: var(--bg-input);
             border: 1px solid var(--border);
             border-radius: 3px;
             font-family: monospace;
-            font-size: 0.65rem;
+            font-size: 0.62rem;
             color: var(--text-muted);
         }
     </style>
@@ -359,7 +365,7 @@
         <header>
             <div class="title-block">
                 <h1>AuraConv‑Multi</h1>
-                <div class="subtitle">9‑Track Block Filter · Single Mic Source</div>
+                <div class="subtitle">v2 · 12‑Track Block Filter · Single Mic Source</div>
             </div>
             <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀</button>
         </header>
@@ -368,7 +374,7 @@
 
         <!-- Global Controls -->
         <div class="global-controls" id="globalControls">
-            <label>Duration
+            <label>Dur
                 <input type="range" id="durSlider" min="1" max="99" value="50">
                 <span class="global-val" id="durVal">50%</span>
             </label>
@@ -388,13 +394,11 @@
             <button class="btn-start" id="startBtn">Start Audio</button>
         </div>
 
-        <!-- 3×3 Track Grid -->
-        <div class="track-grid" id="trackGrid">
-            <!-- Generated by JS -->
-        </div>
+        <!-- 3×4 Track Grid -->
+        <div class="track-grid" id="trackGrid"></div>
 
         <div class="footer-info">
-            Press <span class="kbd">Space</span> to toggle · Each track applies a different block‑size AuraConv filter to the same mic input
+            Press <span class="kbd">Space</span> to toggle · 12 parallel gate tracks (10 → 1M samples) from one mic input
         </div>
     </div>
 
@@ -410,9 +414,11 @@ class BlockProcessor extends AudioWorkletProcessor {
     this.blockDuration = 0.5;
     this.invertBlocking = false;
     this.sampleCounter = 0;
+    this.lastPosMsgTime = 0;
     this.port.onmessage = (e) => {
       if (e.data.key === 'blockDuration') this.blockDuration = e.data.value;
       if (e.data.key === 'invertBlocking') this.invertBlocking = e.data.value;
+      if (e.data.key === 'reset') this.sampleCounter = 0;
     };
   }
   process(inputs, outputs) {
@@ -428,6 +434,11 @@ class BlockProcessor extends AudioWorkletProcessor {
       const mute = this.invertBlocking ? !inZone : inZone;
       outData[i] = mute ? 0 : inData[i];
     }
+    // Send position update ~ every 50ms for gate visualiser
+    if (currentTime - this.lastPosMsgTime >= 0.05) {
+      this.lastPosMsgTime = currentTime;
+      this.port.postMessage({ pos: this.sampleCounter % bs, bs });
+    }
     return true;
   }
 }
@@ -435,14 +446,15 @@ registerProcessor('block-processor', BlockProcessor);
 `;
 
         // ═══════════════════════════════════════════════════════════
-        //  TRACK DEFINITIONS
+        //  TRACK DEFINITIONS (12 tracks)
         // ═══════════════════════════════════════════════════════════
-        const TRACK_BLOCK_SIZES = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000];
+        const TRACK_BLOCK_SIZES = [10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000, 250000, 500000, 1000000];
         const TRACK_COLORS = [
             '#22d3bb', '#2dd4bf', '#34d399', '#a3e635', '#facc15',
-            '#fb923c', '#f87171', '#ef4444', '#c084fc'
+            '#fb923c', '#f87171', '#ef4444', '#c084fc', '#f97316',
+            '#e879f9', '#38bdf8'
         ];
-        const TRACK_LABELS = ['10', '50', '100', '500', '1k', '5k', '10k', '50k', '100k'];
+        const TRACK_LABELS = ['10', '50', '100', '500', '1k', '5k', '10k', '50k', '100k', '250k', '500k', '1M'];
 
         // ═══════════════════════════════════════════════════════════
         //  STATE
@@ -453,20 +465,16 @@ registerProcessor('block-processor', BlockProcessor);
             micNode: null,
             isRunning: false,
             workletModuleLoaded: false,
-            // Per-track nodes
-            tracks: [], // { worklet, analyser, gain, muted, canvas, ctx, color, blockSamples, label }
-            // Master nodes
+            tracks: [],
             masterGain: null,
             convolver: null,
             dryGain: null,
             wetGain: null,
-            // Global params
             blockDuration: 0.5,
             invertBlocking: false,
             decayTime: 3.0,
             dryWetMix: 0.4,
             masterVolume: 0.7,
-            // Animation
             animFrameId: null,
             frameSkip: 0,
         };
@@ -508,14 +516,16 @@ registerProcessor('block-processor', BlockProcessor);
                 </div>
                 <div class="track-canvas-wrap">
                   <canvas></canvas>
-                  <span class="track-level-indicator">–– dB</span>
+                  <div class="track-info-overlay">
+                    <span class="gate-status off" id="gateStatus${i}">GATE OFF</span>
+                    <span class="db-indicator" id="dbIndicator${i}">–– dB</span>
+                  </div>
                 </div>`;
                 dom.trackGrid.appendChild(card);
 
                 const canvas = card.querySelector('canvas');
                 const ctx = canvas.getContext('2d');
 
-                // Initialize track state
                 state.tracks[i] = {
                     worklet: null,
                     analyser: null,
@@ -527,16 +537,19 @@ registerProcessor('block-processor', BlockProcessor);
                     blockSamples: bs,
                     label: TRACK_LABELS[i],
                     card,
+                    _displayW: 180,
+                    _displayH: 90,
+                    _gatePos: 0,
+                    _gateBs: bs,
+                    _gateStatusEl: card.querySelector(`#gateStatus${i}`),
+                    _dbEl: card.querySelector(`#dbIndicator${i}`),
                 };
 
-                // Mute button handler
                 const muteBtn = card.querySelector('.track-mute-btn');
                 muteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     toggleTrackMute(i);
                 });
-
-                // Click card to solo? No, keep it simple with just mute.
             });
             resizeAllCanvases();
         }
@@ -547,7 +560,7 @@ registerProcessor('block-processor', BlockProcessor);
             t.muted = !t.muted;
             if (t.gain && state.audioContext) {
                 const now = state.audioContext.currentTime;
-                t.gain.gain.setTargetAtTime(t.muted ? 0 : 0.7, now, 0.015);
+                t.gain.gain.setTargetAtTime(t.muted ? 0 : 0.7, now, 0.03);
             }
             t.card.classList.toggle('muted', t.muted);
             const muteBtn = t.card.querySelector('.track-mute-btn');
@@ -564,8 +577,8 @@ registerProcessor('block-processor', BlockProcessor);
                 const wrap = t.canvas.parentElement;
                 if (!wrap) return;
                 const rect = wrap.getBoundingClientRect();
-                const w = rect.width || 180;
-                const h = rect.height || 80;
+                const w = rect.width || 200;
+                const h = rect.height || 90;
                 t.canvas.width = w * dpr;
                 t.canvas.height = h * dpr;
                 t.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -588,7 +601,6 @@ registerProcessor('block-processor', BlockProcessor);
                 const ctx = state.audioContext;
                 if (ctx.state === 'suspended') await ctx.resume();
 
-                // Load worklet module once
                 if (!state.workletModuleLoaded) {
                     const blob = new Blob([workletCode], { type: 'application/javascript' });
                     const url = URL.createObjectURL(blob);
@@ -605,13 +617,12 @@ registerProcessor('block-processor', BlockProcessor);
                     URL.revokeObjectURL(url);
                 }
 
-                // Get mic
                 state.micStream = await navigator.mediaDevices.getUserMedia({
                     audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
                 });
                 state.micNode = ctx.createMediaStreamSource(state.micStream);
 
-                // Create master nodes
+                // Master nodes
                 state.masterGain = ctx.createGain();
                 state.masterGain.gain.value = state.masterVolume;
 
@@ -623,19 +634,17 @@ registerProcessor('block-processor', BlockProcessor);
                 state.convolver = ctx.createConvolver();
                 state.convolver.buffer = createImpulseResponse(state.decayTime);
 
-                // Connect master: masterGain → [dry, convolver→wet] → destination
                 state.masterGain.connect(state.dryGain);
                 state.masterGain.connect(state.convolver);
                 state.convolver.connect(state.wetGain);
                 state.dryGain.connect(ctx.destination);
                 state.wetGain.connect(ctx.destination);
 
-                // Create per-track nodes
+                // Per-track nodes
                 for (let i = 0; i < TRACK_BLOCK_SIZES.length; i++) {
                     const t = state.tracks[i];
                     const bs = TRACK_BLOCK_SIZES[i];
 
-                    // Worklet node
                     const wn = new AudioWorkletNode(ctx, 'block-processor', {
                         numberOfInputs: 1,
                         numberOfOutputs: 1,
@@ -644,27 +653,33 @@ registerProcessor('block-processor', BlockProcessor);
                         channelCountMode: 'explicit',
                         processorOptions: { blockSamples: bs },
                     });
-                    // Send current global params
                     wn.port.postMessage({ key: 'blockDuration', value: state.blockDuration });
                     wn.port.postMessage({ key: 'invertBlocking', value: state.invertBlocking });
+                    wn.port.onmessage = (e) => {
+                        if (e.data && typeof e.data.pos === 'number') {
+                            t._gatePos = e.data.pos;
+                            t._gateBs = e.data.bs || bs;
+                        }
+                    };
                     t.worklet = wn;
 
-                    // Analyser
                     const an = ctx.createAnalyser();
                     an.fftSize = 128;
-                    an.smoothingTimeConstant = 0.6;
+                    an.smoothingTimeConstant = 0.55;
                     t.analyser = an;
 
-                    // Track gain
                     const gn = ctx.createGain();
                     gn.gain.value = t.muted ? 0 : 0.7;
                     t.gain = gn;
 
-                    // Connect: mic → worklet → analyser → gain → masterGain
                     state.micNode.connect(wn);
                     wn.connect(an);
                     an.connect(gn);
                     gn.connect(state.masterGain);
+
+                    // Reset gate position
+                    t._gatePos = 0;
+                    t._gateBs = bs;
                 }
 
                 state.isRunning = true;
@@ -686,7 +701,6 @@ registerProcessor('block-processor', BlockProcessor);
                 cancelAnimationFrame(state.animFrameId);
                 state.animFrameId = null;
             }
-            // Disconnect & cleanup tracks
             state.tracks.forEach(t => {
                 if (t.worklet) { try { t.worklet.disconnect(); } catch {} }
                 if (t.analyser) { try { t.analyser.disconnect(); } catch {} }
@@ -694,8 +708,8 @@ registerProcessor('block-processor', BlockProcessor);
                 t.worklet = null;
                 t.analyser = null;
                 t.gain = null;
+                t._gatePos = 0;
             });
-            // Disconnect master
             [state.masterGain, state.dryGain, state.wetGain, state.convolver].forEach(n => {
                 if (n) { try { n.disconnect(); } catch {} }
             });
@@ -703,7 +717,6 @@ registerProcessor('block-processor', BlockProcessor);
             state.dryGain = null;
             state.wetGain = null;
             state.convolver = null;
-            // Stop mic
             if (state.micStream) {
                 state.micStream.getTracks().forEach(t => t.stop());
                 state.micStream = null;
@@ -714,12 +727,17 @@ registerProcessor('block-processor', BlockProcessor);
             state.isRunning = false;
             dom.startBtn.textContent = 'Start Audio';
             dom.startBtn.classList.remove('stop');
-            // Clear canvases
             state.tracks.forEach(t => {
                 if (t.ctx && t._displayW) {
                     t.ctx.clearRect(0, 0, t._displayW, t._displayH);
-                    drawIdleWaveform(t);
+                    drawIdleTrack(t);
                 }
+                if (t._gateStatusEl) {
+                    t._gateStatusEl.textContent = 'GATE OFF';
+                    t._gateStatusEl.classList.remove('on');
+                    t._gateStatusEl.classList.add('off');
+                }
+                if (t._dbEl) t._dbEl.textContent = '–– dB';
             });
             updateAllMuteButtons();
         }
@@ -753,9 +771,7 @@ registerProcessor('block-processor', BlockProcessor);
         // ═══════════════════════════════════════════════════════════
         function broadcastParam(key, value) {
             state.tracks.forEach(t => {
-                if (t.worklet) {
-                    t.worklet.port.postMessage({ key, value });
-                }
+                if (t.worklet) t.worklet.port.postMessage({ key, value });
             });
         }
 
@@ -798,26 +814,34 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  VISUALIZATION
+        //  VISUALISATION — Dual‑layer: waveform + gate overlay
         // ═══════════════════════════════════════════════════════════
-        function drawIdleWaveform(t) {
+        function drawIdleTrack(t) {
             const ctx = t.ctx;
-            const w = t._displayW || 180;
-            const h = t._displayH || 80;
+            const w = t._displayW || 200;
+            const h = t._displayH || 90;
             ctx.clearRect(0, 0, w, h);
-            ctx.strokeStyle = t.color + '44';
-            ctx.lineWidth = 1;
+            // Center line
+            ctx.strokeStyle = t.color + '33';
+            ctx.lineWidth = 0.8;
+            ctx.setLineDash([4, 8]);
             ctx.beginPath();
             ctx.moveTo(0, h / 2);
             ctx.lineTo(w, h / 2);
             ctx.stroke();
+            ctx.setLineDash([]);
+            // Gate bar background
+            const barY = h - 7;
+            const barH = 5;
+            ctx.fillStyle = 'rgba(255,255,255,0.04)';
+            ctx.fillRect(0, barY, w, barH);
         }
 
         function startVisualization() {
             function loop() {
                 state.animFrameId = requestAnimationFrame(loop);
                 state.frameSkip = (state.frameSkip + 1) % 2;
-                if (state.frameSkip !== 0) return; // ~30fps for efficiency
+                if (state.frameSkip !== 0) return;
 
                 state.tracks.forEach(t => {
                     if (!t.analyser || !t.ctx || !t._displayW) return;
@@ -830,44 +854,92 @@ registerProcessor('block-processor', BlockProcessor);
 
                     an.getByteTimeDomainData(timeData);
 
-                    // Compute RMS for level indicator
+                    // RMS for dB
                     let sum = 0;
                     for (let i = 0; i < bufLen; i++) {
                         const v = (timeData[i] - 128) / 128;
                         sum += v * v;
                     }
                     const rms = Math.sqrt(sum / bufLen);
-                    const db = rms > 0.001 ? Math.round(20 * Math.log10(rms)) : -60;
-                    const levelEl = t.card?.querySelector('.track-level-indicator');
-                    if (levelEl) {
-                        levelEl.textContent = (db <= -60 ? '––' : db) + ' dB';
-                        levelEl.style.color = rms > 0.05 ? t.color : 'var(--text-dim)';
+                    const db = rms > 0.0005 ? Math.round(20 * Math.log10(rms)) : -60;
+                    if (t._dbEl) {
+                        t._dbEl.textContent = (db <= -60 ? '––' : db) + ' dB';
                     }
 
-                    // Clear
-                    ctx.clearRect(0, 0, w, h);
-                    // Subtle grid line at center
-                    ctx.strokeStyle = t.muted ? '#333' : (t.color + '22');
-                    ctx.lineWidth = 0.5;
-                    ctx.beginPath();
-                    ctx.moveTo(0, h / 2);
-                    ctx.lineTo(w, h / 2);
-                    ctx.stroke();
+                    // ── Compute gate state ──
+                    const bs = t._gateBs || t.blockSamples;
+                    const blockLen = Math.max(0, Math.round(bs * state.blockDuration));
+                    const pos = t._gatePos || 0;
+                    const inZone = pos < blockLen;
+                    const gateMute = state.invertBlocking ? !inZone : inZone;
+                    const gateOn = !gateMute; // audio passes when gate is NOT muted
 
-                    // Draw waveform
+                    // ── Clear ──
+                    ctx.clearRect(0, 0, w, h);
+
+                    // ── Draw waveform ──
                     ctx.strokeStyle = t.muted ? '#444' : t.color;
-                    ctx.lineWidth = t.muted ? 0.8 : 1.4;
-                    ctx.shadowColor = t.muted ? 'transparent' : (t.color + '88');
-                    ctx.shadowBlur = t.muted ? 0 : 4;
+                    ctx.lineWidth = t.muted ? 0.7 : 1.3;
+                    ctx.shadowColor = t.muted ? 'transparent' : (t.color + '66');
+                    ctx.shadowBlur = t.muted ? 0 : 3;
                     ctx.beginPath();
+                    const waveAreaBottom = h - 12;
+                    const waveCenter = waveAreaBottom / 2;
+                    const waveAmp = waveAreaBottom * 0.42;
                     for (let i = 0; i < bufLen; i++) {
                         const x = (i / bufLen) * w;
-                        const y = (timeData[i] / 255) * h;
+                        const y = waveCenter + ((timeData[i] - 128) / 128) * waveAmp;
                         if (i === 0) ctx.moveTo(x, y);
                         else ctx.lineTo(x, y);
                     }
                     ctx.stroke();
                     ctx.shadowBlur = 0;
+
+                    // ── Draw gate overlay bar ──
+                    const barY = h - 8;
+                    const barH = 5;
+                    const barRadius = 2;
+
+                    // Background
+                    ctx.fillStyle = t.muted ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)';
+                    ctx.beginPath();
+                    ctx.roundRect(0, barY, w, barH, barRadius);
+                    ctx.fill();
+
+                    // Active zone highlight
+                    const activeStart = state.invertBlocking ? 0 : (blockLen / bs) * w;
+                    const activeEnd = state.invertBlocking ? (blockLen / bs) * w : w;
+                    const activeW = activeEnd - activeStart;
+                    if (activeW > 0.5) {
+                        ctx.fillStyle = t.muted ? 'rgba(255,255,255,0.06)' : (t.color + '33');
+                        ctx.beginPath();
+                        ctx.roundRect(activeStart, barY, activeW, barH, barRadius);
+                        ctx.fill();
+                    }
+
+                    // Position indicator
+                    const posX = bs > 0 ? (pos / bs) * w : 0;
+                    ctx.fillStyle = gateOn ? t.color : 'rgba(255,255,255,0.25)';
+                    ctx.shadowColor = gateOn ? t.color : 'transparent';
+                    ctx.shadowBlur = gateOn ? 6 : 0;
+                    ctx.beginPath();
+                    ctx.arc(posX, barY + barH / 2, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    // ── Update gate status text ──
+                    if (t._gateStatusEl) {
+                        t._gateStatusEl.textContent = gateOn ? 'GATE ON' : 'GATE OFF';
+                        if (gateOn) {
+                            t._gateStatusEl.classList.add('on');
+                            t._gateStatusEl.classList.remove('off');
+                            t._gateStatusEl.style.color = t.color;
+                        } else {
+                            t._gateStatusEl.classList.remove('on');
+                            t._gateStatusEl.classList.add('off');
+                            t._gateStatusEl.style.color = '';
+                        }
+                    }
                 });
             }
             loop();
@@ -877,54 +949,48 @@ registerProcessor('block-processor', BlockProcessor);
         //  EVENT LISTENERS
         // ═══════════════════════════════════════════════════════════
         function setupEventListeners() {
-            // Theme
-            const savedTheme = localStorage.getItem('auraconv-multi-theme') || 'dark';
+            const savedTheme = localStorage.getItem('auraconv-multi-v2-theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
             dom.themeToggle.textContent = savedTheme === 'dark' ? '☀' : '🌙';
             dom.themeToggle.addEventListener('click', () => {
                 const cur = document.documentElement.getAttribute('data-theme');
                 const nxt = cur === 'dark' ? 'light' : 'dark';
                 document.documentElement.setAttribute('data-theme', nxt);
-                localStorage.setItem('auraconv-multi-theme', nxt);
+                localStorage.setItem('auraconv-multi-v2-theme', nxt);
                 dom.themeToggle.textContent = nxt === 'dark' ? '☀' : '🌙';
                 document.querySelector('meta[name="theme-color"]')
                     ?.setAttribute('content', nxt === 'dark' ? '#0a0a0a' : '#ececec');
             });
 
-            // Start/Stop
             dom.startBtn.addEventListener('click', () => {
                 if (state.isRunning) stopAudio();
                 else startAudio();
             });
 
-            // Keyboard
             document.addEventListener('keydown', (e) => {
-                if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+                if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && e
+                    .target.tagName !== 'TEXTAREA') {
                     e.preventDefault();
                     dom.startBtn.click();
                 }
             });
 
-            // Global sliders
             dom.durSlider.addEventListener('input', (e) => updateBlockDuration(parseInt(e.target.value) / 100));
             dom.invertBtn.addEventListener('click', () => updateInvertBlocking(!state.invertBlocking));
             dom.decaySlider.addEventListener('input', (e) => updateDecayTime(parseFloat(e.target.value)));
             dom.dwSlider.addEventListener('input', (e) => updateDryWetMix(parseInt(e.target.value) / 100));
             dom.masterSlider.addEventListener('input', (e) => updateMasterVolume(parseInt(e.target.value) / 100));
 
-            // Resize
             window.addEventListener('resize', () => {
                 resizeAllCanvases();
-                // Redraw idle waveforms if stopped
                 if (!state.isRunning) {
-                    state.tracks.forEach(t => drawIdleWaveform(t));
+                    state.tracks.forEach(t => drawIdleTrack(t));
                 }
             });
 
-            // Background handling
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'hidden' && state.isRunning) {
-                    // Audio continues in background; no action needed
+                    // Audio runs in background; no action needed
                 }
             });
         }
@@ -933,7 +999,6 @@ registerProcessor('block-processor', BlockProcessor);
         //  INIT
         // ═══════════════════════════════════════════════════════════
         function init() {
-            // Initialize tracks array
             state.tracks = new Array(TRACK_BLOCK_SIZES.length).fill(null).map(() => ({
                 worklet: null,
                 analyser: null,
@@ -945,17 +1010,19 @@ registerProcessor('block-processor', BlockProcessor);
                 blockSamples: 50,
                 label: '',
                 card: null,
-                _displayW: 180,
-                _displayH: 80,
+                _displayW: 200,
+                _displayH: 90,
+                _gatePos: 0,
+                _gateBs: 50,
+                _gateStatusEl: null,
+                _dbEl: null,
             }));
             buildTrackUI();
             setupEventListeners();
-            // Small delay to ensure layout is computed, then draw idle waveforms
             setTimeout(() => {
                 resizeAllCanvases();
-                state.tracks.forEach(t => drawIdleWaveform(t));
-            }, 100);
-            // Initial global UI state
+                state.tracks.forEach(t => drawIdleTrack(t));
+            }, 120);
             dom.invertBtn.classList.toggle('active', state.invertBlocking);
         }
 
