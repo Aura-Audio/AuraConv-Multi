@@ -195,7 +195,7 @@
         <header>
             <div class="title-block">
                 <h1>AuraConv‑Multi</h1>
-                <div class="subtitle">v4 · 50‑Track Block Filter · Per‑track vol · AGC</div>
+                <div class="subtitle">v4 · 50‑Track Block Filter · Input/Per‑Track/Master Level Control</div>
             </div>
             <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀</button>
         </header>
@@ -203,6 +203,10 @@
         <div class="warning" id="warning"></div>
 
         <div class="global-controls" id="globalControls">
+            <label>In Gain
+                <input type="range" id="inGainSlider" min="0" max="200" value="100">
+                <span class="global-val" id="inGainVal">100%</span>
+            </label>
             <label>Dur
                 <input type="range" id="durSlider" min="1" max="99" value="50">
                 <span class="global-val" id="durVal">50%</span>
@@ -224,6 +228,7 @@
                     <option value="0.02">High</option>
                 </select>
             </label>
+            <button class="toggle-sm" id="masterCompBtn">Master Comp</button>
             <label>Decay
                 <input type="range" id="decaySlider" min="0.5" max="12" value="3" step="0.1">
                 <span class="global-val" id="decayVal">3.0s</span>
@@ -242,14 +247,14 @@
         <div class="track-grid" id="trackGrid"></div>
 
         <div class="footer-info">
-            Press <span class="kbd">Space</span> to toggle · 50 tracks (10 → 1M samples) · AGC keeps output steady (±10%)
-            <br><small>Per‑track volume slider ⬤  Auto‑fade smooths gate edges · AGC Off/Low/Med/High</small>
+            Press <span class="kbd">Space</span> to toggle · 50 tracks (10 → 1M samples) · Input gain · Per‑track vol 30‑70% · Master comp
+            <br><small>Per‑track volume slider narrow range (30‑70%) · Master Comp forces overall output to medium level</small>
         </div>
     </div>
 
     <script>
         // ═══════════════════════════════════════════════════════════
-        //  AUDIOWORKLET PROCESSOR (fixed gate + fade + AGC)
+        //  AUDIOWORKLET PROCESSOR (unchanged core logic)
         // ═══════════════════════════════════════════════════════════
         const workletCode = `
 class BlockProcessor extends AudioWorkletProcessor {
@@ -259,12 +264,11 @@ class BlockProcessor extends AudioWorkletProcessor {
     this.blockDuration = 0.5;
     this.invertBlocking = false;
     this.fadeStart = 1.0;
-    // AGC
     this.agcGain = 1.0;
-    this.agcSmoothing = 0;           // 0 = disabled
-    this.targetRms = 0.1;            // -20 dBFS
-    this.maxGain = this.targetRms * 1.1;   // +10%
-    this.minGain = this.targetRms * 0.9;   // -10%
+    this.agcSmoothing = 0;
+    this.targetRms = 0.1;
+    this.maxGain = this.targetRms * 1.1;
+    this.minGain = this.targetRms * 0.9;
     this.sampleCounter = 0;
     this.lastPosMsgTime = 0;
     this.port.onmessage = (e) => {
@@ -273,7 +277,7 @@ class BlockProcessor extends AudioWorkletProcessor {
       if (e.data.key === 'fadeStart') this.fadeStart = e.data.value;
       if (e.data.key === 'agcSmoothing') {
         this.agcSmoothing = parseFloat(e.data.value);
-        if (this.agcSmoothing === 0) this.agcGain = 1.0; // reset
+        if (this.agcSmoothing === 0) this.agcGain = 1.0;
       }
       if (e.data.key === 'reset') this.sampleCounter = 0;
     };
@@ -312,27 +316,18 @@ class BlockProcessor extends AudioWorkletProcessor {
       outData[i] = inData[i] * env;
     }
 
-    // ─── AGC (applied after gating) ───
     if (this.agcSmoothing > 0) {
-      // Measure RMS of the output block (only non‑zero samples)
-      let sum = 0;
-      let count = 0;
+      let sum = 0, count = 0;
       for (let i = 0; i < outData.length; i++) {
         const v = outData[i];
-        if (v !== 0) {
-          sum += v * v;
-          count++;
-        }
+        if (v !== 0) { sum += v * v; count++; }
       }
       if (count > 0) {
         const rms = Math.sqrt(sum / count);
         let desiredGain = this.targetRms / (rms + 0.0001);
-        // Clamp to allowed range (±10% of target)
         desiredGain = Math.min(this.maxGain, Math.max(this.minGain, desiredGain));
-        // Smooth
         this.agcGain += this.agcSmoothing * (desiredGain - this.agcGain);
       }
-      // Apply AGC gain
       for (let i = 0; i < outData.length; i++) {
         outData[i] *= this.agcGain;
       }
@@ -377,11 +372,15 @@ registerProcessor('block-processor', BlockProcessor);
         // ═══════════════════════════════════════════════════════════
         const state = {
             audioContext: null, micStream: null, micNode: null,
+            inputGain: null,          // NEW: mic input gain node
             isRunning: false, workletModuleLoaded: false, tracks: [],
             masterGain: null, convolver: null, dryGain: null, wetGain: null,
+            masterCompressor: null,   // NEW: master compressor node
+            masterCompOn: false,      // NEW: compressor toggle state
+            inputGainValue: 1.0,      // NEW: 0..2
             blockDuration: 0.5, invertBlocking: false,
-            fadeStart: 0.75,          // default Med
-            agcSmoothing: 0.005,      // default Low
+            fadeStart: 0.75,
+            agcSmoothing: 0.005,
             decayTime: 3.0, dryWetMix: 0.4, masterVolume: 0.7,
             animFrameId: null, frameSkip: 0,
         };
@@ -389,16 +388,19 @@ registerProcessor('block-processor', BlockProcessor);
         const $ = (id) => document.getElementById(id);
         const dom = {
             trackGrid: $('trackGrid'), startBtn: $('startBtn'), warning: $('warning'),
-            themeToggle: $('themeToggle'), durSlider: $('durSlider'), durVal: $('durVal'),
+            themeToggle: $('themeToggle'),
+            inGainSlider: $('inGainSlider'), inGainVal: $('inGainVal'),
+            durSlider: $('durSlider'), durVal: $('durVal'),
             invertBtn: $('invertBtn'), fadeSelect: $('fadeSelect'),
             agcSelect: $('agcSelect'),
+            masterCompBtn: $('masterCompBtn'),
             decaySlider: $('decaySlider'), decayVal: $('decayVal'),
             dwSlider: $('dwSlider'), dwVal: $('dwVal'),
             masterSlider: $('masterSlider'), masterVal: $('masterVal'),
         };
 
         // ═══════════════════════════════════════════════════════════
-        //  BUILD TRACK UI (50 tracks) + per‑track volume slider
+        //  BUILD TRACK UI (per‑track volume narrowed to 30‑70%)
         // ═══════════════════════════════════════════════════════════
         function buildTrackUI() {
             dom.trackGrid.innerHTML = '';
@@ -410,7 +412,7 @@ registerProcessor('block-processor', BlockProcessor);
                 <div class="track-card-header">
                   <span class="track-color-dot" style="background:${TRACK_COLORS[i]};box-shadow:0 0 5px ${TRACK_COLORS[i]}44;"></span>
                   <span class="track-label">${TRACK_LABELS[i]} sp</span>
-                  <input type="range" class="vol-slider" id="volSlider${i}" min="0" max="100" value="70" title="Track volume">
+                  <input type="range" class="vol-slider" id="volSlider${i}" min="30" max="70" value="50" title="Track volume (30‑70%)">
                   <button class="track-mute-btn" data-index="${i}" title="Mute track">M</button>
                 </div>
                 <div class="track-canvas-wrap">
@@ -430,7 +432,7 @@ registerProcessor('block-processor', BlockProcessor);
                     worklet: null, analyser: null, gain: null, muted: false,
                     canvas, ctx, color: TRACK_COLORS[i],
                     blockSamples: bs, label: TRACK_LABELS[i], card,
-                    vol: 0.7,
+                    vol: 0.5,   // default middle
                     _displayW: 180, _displayH: 60,
                     _gatePos: 0, _gateBs: bs,
                     _gateStatusEl: card.querySelector(`#gateStatus${i}`),
@@ -439,7 +441,7 @@ registerProcessor('block-processor', BlockProcessor);
                 };
 
                 volSlider.addEventListener('input', (e) => {
-                    const val = parseInt(e.target.value) / 100;
+                    const val = parseInt(e.target.value) / 100;   // 0.3 .. 0.7
                     trackObj.vol = val;
                     if (trackObj.gain && state.audioContext) {
                         trackObj.gain.gain.setTargetAtTime(
@@ -495,7 +497,7 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  AUDIO SETUP
+        //  AUDIO SETUP (adds inputGain & master compressor)
         // ═══════════════════════════════════════════════════════════
         async function startAudio() {
             try {
@@ -526,17 +528,52 @@ registerProcessor('block-processor', BlockProcessor);
                 });
                 state.micNode = ctx.createMediaStreamSource(state.micStream);
 
-                state.masterGain = ctx.createGain(); state.masterGain.gain.value = state.masterVolume;
-                state.dryGain = ctx.createGain(); state.dryGain.gain.value = 1 - state.dryWetMix;
-                state.wetGain = ctx.createGain(); state.wetGain.gain.value = state.dryWetMix;
+                // ★ Input gain node (mic → inputGain → tracks)
+                state.inputGain = ctx.createGain();
+                state.inputGain.gain.value = state.inputGainValue;
+                state.micNode.connect(state.inputGain);
+
+                // Master output
+                state.masterGain = ctx.createGain();
+                state.masterGain.gain.value = state.masterVolume;
+
+                state.dryGain = ctx.createGain();
+                state.wetGain = ctx.createGain();
+                state.dryGain.gain.value = 1 - state.dryWetMix;
+                state.wetGain.gain.value = state.dryWetMix;
+
                 state.convolver = ctx.createConvolver();
                 state.convolver.buffer = createImpulseResponse(state.decayTime);
+
+                // Master compressor (after dry/wet mix, before destination)
+                state.masterCompressor = ctx.createDynamicsCompressor();
+                state.masterCompressor.threshold.value = -24;
+                state.masterCompressor.knee.value = 6;
+                state.masterCompressor.ratio.value = 12;
+                state.masterCompressor.attack.value = 0.005;
+                state.masterCompressor.release.value = 0.050;
+
+                // Connect the chain:
+                // dry → masterCompressor? → destination
+                // wet → masterCompressor? → destination
+                // We'll merge dry & wet into a single node then through compressor.
+                const merger = ctx.createGain(); // unity gain merger
+                state.dryGain.connect(merger);
+                state.wetGain.connect(merger);
+
+                if (state.masterCompOn) {
+                    merger.connect(state.masterCompressor);
+                    state.masterCompressor.connect(ctx.destination);
+                } else {
+                    merger.connect(ctx.destination);
+                }
+
+                // Master gain controls the summed signal before dry/wet split
                 state.masterGain.connect(state.dryGain);
                 state.masterGain.connect(state.convolver);
                 state.convolver.connect(state.wetGain);
-                state.dryGain.connect(ctx.destination);
-                state.wetGain.connect(ctx.destination);
 
+                // Per-track nodes
                 for (let i = 0; i < TRACK_BLOCK_SIZES.length; i++) {
                     const t = state.tracks[i];
                     const bs = TRACK_BLOCK_SIZES[i];
@@ -567,7 +604,8 @@ registerProcessor('block-processor', BlockProcessor);
                     gn.gain.value = t.muted ? 0 : t.vol;
                     t.gain = gn;
 
-                    state.micNode.connect(wn);
+                    // Connect from inputGain (not micNode directly)
+                    state.inputGain.connect(wn);
                     wn.connect(an);
                     an.connect(gn);
                     gn.connect(state.masterGain);
@@ -598,10 +636,10 @@ registerProcessor('block-processor', BlockProcessor);
                 if (t.gain) { try { t.gain.disconnect(); } catch {} }
                 t.worklet = null; t.analyser = null; t.gain = null; t._gatePos = 0;
             });
-            [state.masterGain, state.dryGain, state.wetGain, state.convolver].forEach(n => {
+            [state.masterGain, state.dryGain, state.wetGain, state.convolver, state.inputGain, state.masterCompressor].forEach(n => {
                 if (n) { try { n.disconnect(); } catch {} }
             });
-            state.masterGain = state.dryGain = state.wetGain = state.convolver = null;
+            state.masterGain = state.dryGain = state.wetGain = state.convolver = state.inputGain = state.masterCompressor = null;
             if (state.micStream) { state.micStream.getTracks().forEach(t => t.stop()); state.micStream = null; }
             if (state.micNode) { try { state.micNode.disconnect(); } catch {} state.micNode = null; }
 
@@ -644,10 +682,18 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  GLOBAL PARAM UPDATES
+        //  GLOBAL PARAM UPDATES (add input gain & master comp)
         // ═══════════════════════════════════════════════════════════
         function broadcastParam(key, value) {
             state.tracks.forEach(t => { if (t.worklet) t.worklet.port.postMessage({ key, value }); });
+        }
+
+        function updateInputGain(val) {
+            state.inputGainValue = val;   // 0..2
+            dom.inGainVal.textContent = Math.round(val * 100) + '%';
+            if (state.inputGain && state.audioContext) {
+                state.inputGain.gain.setTargetAtTime(val, state.audioContext.currentTime, 0.03);
+            }
         }
 
         function updateBlockDuration(val) {
@@ -670,6 +716,29 @@ registerProcessor('block-processor', BlockProcessor);
         function updateAgcSmoothing(val) {
             state.agcSmoothing = parseFloat(val);
             broadcastParam('agcSmoothing', state.agcSmoothing);
+        }
+
+        function toggleMasterCompressor() {
+            state.masterCompOn = !state.masterCompOn;
+            dom.masterCompBtn.classList.toggle('active', state.masterCompOn);
+            if (!state.audioContext) return;
+
+            // Rebuild the final part of the graph (merger → compressor or direct)
+            // We need a reference to the merger. Let's store it in state.
+            if (state.masterCompOn) {
+                // Disconnect merger from destination, connect to compressor, compressor to destination
+                try { state._merger.disconnect(); } catch {}
+                state._merger.connect(state.masterCompressor);
+                if (!state._compressorConnected) {
+                    state.masterCompressor.connect(state.audioContext.destination);
+                    state._compressorConnected = true;
+                }
+            } else {
+                try { state._merger.disconnect(); } catch {}
+                try { state.masterCompressor.disconnect(); } catch {}
+                state._merger.connect(state.audioContext.destination);
+                state._compressorConnected = false;
+            }
         }
 
         function updateDecayTime(val) {
@@ -699,7 +768,7 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  VISUALISATION (unchanged)
+        //  VISUALISATION
         // ═══════════════════════════════════════════════════════════
         function drawIdleTrack(t) {
             const ctx = t.ctx, w = t._displayW || 200, h = t._displayH || 60;
@@ -825,10 +894,12 @@ registerProcessor('block-processor', BlockProcessor);
                 }
             });
 
+            dom.inGainSlider.addEventListener('input', (e) => updateInputGain(parseInt(e.target.value) / 100));
             dom.durSlider.addEventListener('input', (e) => updateBlockDuration(parseInt(e.target.value) / 100));
             dom.invertBtn.addEventListener('click', () => updateInvertBlocking(!state.invertBlocking));
             dom.fadeSelect.addEventListener('change', (e) => updateFadeStart(e.target.value));
             dom.agcSelect.addEventListener('change', (e) => updateAgcSmoothing(e.target.value));
+            dom.masterCompBtn.addEventListener('click', toggleMasterCompressor);
             dom.decaySlider.addEventListener('input', (e) => updateDecayTime(parseFloat(e.target.value)));
             dom.dwSlider.addEventListener('input', (e) => updateDryWetMix(parseInt(e.target.value) / 100));
             dom.masterSlider.addEventListener('input', (e) => updateMasterVolume(parseInt(e.target.value) / 100));
@@ -846,7 +917,7 @@ registerProcessor('block-processor', BlockProcessor);
             state.tracks = new Array(TRACK_BLOCK_SIZES.length).fill(null).map(() => ({
                 worklet: null, analyser: null, gain: null, muted: false,
                 canvas: null, ctx: null, color: '#888', blockSamples: 50, label: '', card: null,
-                vol: 0.7, _displayW: 200, _displayH: 60, _gatePos: 0, _gateBs: 50,
+                vol: 0.5, _displayW: 200, _displayH: 60, _gatePos: 0, _gateBs: 50,
                 _gateStatusEl: null, _dbEl: null, _volSlider: null,
             }));
             buildTrackUI();
@@ -858,6 +929,9 @@ registerProcessor('block-processor', BlockProcessor);
             dom.invertBtn.classList.toggle('active', state.invertBlocking);
             dom.fadeSelect.value = state.fadeStart;
             dom.agcSelect.value = state.agcSmoothing;
+            dom.masterCompBtn.classList.toggle('active', state.masterCompOn);
+            dom.inGainSlider.value = 100;   // default 100%
+            dom.inGainVal.textContent = '100%';
         }
         init();
     </script>
