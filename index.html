@@ -202,7 +202,7 @@
             background: linear-gradient(135deg, #f5576c, #c0392b);
         }
 
-        /* ── 3‑column grid (fits 50 tracks neatly) ── */
+        /* ── 3‑column grid ── */
         .track-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -268,7 +268,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 70px;
+            max-width: 55px;
         }
         .track-color-dot {
             width: 6px;
@@ -299,6 +299,29 @@
             background: var(--danger);
             border-color: var(--danger);
             color: #fff;
+        }
+        /* Per‑track volume slider */
+        .vol-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 45px;
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            margin: 0 3px;
+            flex-shrink: 1;
+            min-width: 30px;
+        }
+        .vol-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            opacity: 0.8;
         }
         .track-canvas-wrap {
             position: relative;
@@ -361,6 +384,16 @@
             font-size: 0.62rem;
             color: var(--text-muted);
         }
+        select.small-select {
+            background: var(--bg-input);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 0.68rem;
+            cursor: pointer;
+            outline: none;
+        }
     </style>
 </head>
 <body>
@@ -382,6 +415,14 @@
                 <span class="global-val" id="durVal">50%</span>
             </label>
             <button class="toggle-sm" id="invertBtn">Invert</button>
+            <label>Fade
+                <select id="fadeSelect" class="small-select">
+                    <option value="1">Off</option>
+                    <option value="0.5">Low</option>
+                    <option value="0.75" selected>Med</option>
+                    <option value="0.9">High</option>
+                </select>
+            </label>
             <label>Decay
                 <input type="range" id="decaySlider" min="0.5" max="12" value="3" step="0.1">
                 <span class="global-val" id="decayVal">3.0s</span>
@@ -397,11 +438,12 @@
             <button class="btn-start" id="startBtn">Start Audio</button>
         </div>
 
-        <!-- Track grid (now 50 tracks) -->
+        <!-- Track grid (50 tracks) -->
         <div class="track-grid" id="trackGrid"></div>
 
         <div class="footer-info">
             Press <span class="kbd">Space</span> to toggle · 50 parallel gate tracks (10 → 1M samples) from one mic input
+            <br><small>Per‑track volume slider ⬤  Auto‑fade smooths gate edges (Off/Low/Med/High)</small>
         </div>
     </div>
 
@@ -416,11 +458,13 @@ class BlockProcessor extends AudioWorkletProcessor {
     this.blockSamples = options.processorOptions?.blockSamples || 50;
     this.blockDuration = 0.5;
     this.invertBlocking = false;
+    this.fadeStart = 1.0;   // 1 = no fade, 0.5 = fade starts at 50% of open window
     this.sampleCounter = 0;
     this.lastPosMsgTime = 0;
     this.port.onmessage = (e) => {
       if (e.data.key === 'blockDuration') this.blockDuration = e.data.value;
       if (e.data.key === 'invertBlocking') this.invertBlocking = e.data.value;
+      if (e.data.key === 'fadeStart') this.fadeStart = e.data.value;
       if (e.data.key === 'reset') this.sampleCounter = 0;
     };
   }
@@ -430,12 +474,24 @@ class BlockProcessor extends AudioWorkletProcessor {
     if (!inData || !outData) return true;
     const bs = this.blockSamples;
     const blockLen = Math.max(0, Math.round(bs * this.blockDuration));
+    const fadeStart = this.fadeStart;
     for (let i = 0; i < outData.length; i++) {
       this.sampleCounter++;
       const pos = this.sampleCounter % bs;
       const inZone = pos < blockLen;
       const mute = this.invertBlocking ? !inZone : inZone;
-      outData[i] = mute ? 0 : inData[i];
+      let env = 0;
+      if (!mute) {
+        // Open window – apply fade if needed
+        const progress = pos / blockLen;   // 0 to 1 inside open window
+        if (progress < fadeStart) {
+          env = 1;
+        } else {
+          // Linear fade from 1 to 0
+          env = Math.max(0, (1 - progress) / (1 - fadeStart));
+        }
+      }
+      outData[i] = inData[i] * env;
     }
     if (currentTime - this.lastPosMsgTime >= 0.05) {
       this.lastPosMsgTime = currentTime;
@@ -458,13 +514,12 @@ registerProcessor('block-processor', BlockProcessor);
             122262, 154683, 195707, 247621, 313314, 396400, 501536, 634557, 802870, 1000000
         ];
 
-        // Generate 50 distinct HSL colors
+        // 50 distinct HSL colours
         const TRACK_COLORS = Array.from({ length: 50 }, (_, i) => {
-            const hue = (i * 7.2) % 360;  // even spread
+            const hue = (i * 7.2) % 360;
             return `hsl(${hue}, 70%, 55%)`;
         });
 
-        // Format labels: <1000 as number, <1M as X.Xk, 1M as 1M
         function formatBlockLabel(bs) {
             if (bs < 1000) return bs.toString();
             if (bs >= 1000000) return '1M';
@@ -489,6 +544,7 @@ registerProcessor('block-processor', BlockProcessor);
             wetGain: null,
             blockDuration: 0.5,
             invertBlocking: false,
+            fadeStart: 0.75,    // default Med
             decayTime: 3.0,
             dryWetMix: 0.4,
             masterVolume: 0.7,
@@ -508,6 +564,7 @@ registerProcessor('block-processor', BlockProcessor);
             durSlider: $('durSlider'),
             durVal: $('durVal'),
             invertBtn: $('invertBtn'),
+            fadeSelect: $('fadeSelect'),
             decaySlider: $('decaySlider'),
             decayVal: $('decayVal'),
             dwSlider: $('dwSlider'),
@@ -517,7 +574,7 @@ registerProcessor('block-processor', BlockProcessor);
         };
 
         // ═══════════════════════════════════════════════════════════
-        //  BUILD TRACK UI (50 tracks)
+        //  BUILD TRACK UI (50 tracks) + per‑track volume slider
         // ═══════════════════════════════════════════════════════════
         function buildTrackUI() {
             dom.trackGrid.innerHTML = '';
@@ -529,6 +586,7 @@ registerProcessor('block-processor', BlockProcessor);
                 <div class="track-card-header">
                   <span class="track-color-dot" style="background:${TRACK_COLORS[i]};box-shadow:0 0 5px ${TRACK_COLORS[i]}44;"></span>
                   <span class="track-label">${TRACK_LABELS[i]} sp</span>
+                  <input type="range" class="vol-slider" id="volSlider${i}" min="0" max="100" value="70" title="Track volume">
                   <button class="track-mute-btn" data-index="${i}" title="Mute track">M</button>
                 </div>
                 <div class="track-canvas-wrap">
@@ -542,8 +600,9 @@ registerProcessor('block-processor', BlockProcessor);
 
                 const canvas = card.querySelector('canvas');
                 const ctx = canvas.getContext('2d');
+                const volSlider = card.querySelector(`#volSlider${i}`);
 
-                state.tracks[i] = {
+                const trackObj = {
                     worklet: null,
                     analyser: null,
                     gain: null,
@@ -554,19 +613,37 @@ registerProcessor('block-processor', BlockProcessor);
                     blockSamples: bs,
                     label: TRACK_LABELS[i],
                     card,
+                    vol: 0.7,     // default 70% = 0.7
                     _displayW: 180,
-                    _displayH: 60,  // slightly smaller to fit 50 tracks
+                    _displayH: 60,
                     _gatePos: 0,
                     _gateBs: bs,
                     _gateStatusEl: card.querySelector(`#gateStatus${i}`),
                     _dbEl: card.querySelector(`#dbIndicator${i}`),
+                    _volSlider: volSlider,
                 };
 
+                // Volume slider event
+                volSlider.addEventListener('input', (e) => {
+                    const val = parseInt(e.target.value) / 100;   // 0..1
+                    trackObj.vol = val;
+                    if (trackObj.gain && state.audioContext) {
+                        trackObj.gain.gain.setTargetAtTime(
+                            trackObj.muted ? 0 : val,
+                            state.audioContext.currentTime,
+                            0.03
+                        );
+                    }
+                });
+
+                // Mute button
                 const muteBtn = card.querySelector('.track-mute-btn');
                 muteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     toggleTrackMute(i);
                 });
+
+                state.tracks[i] = trackObj;
             });
             resizeAllCanvases();
         }
@@ -577,7 +654,7 @@ registerProcessor('block-processor', BlockProcessor);
             t.muted = !t.muted;
             if (t.gain && state.audioContext) {
                 const now = state.audioContext.currentTime;
-                t.gain.gain.setTargetAtTime(t.muted ? 0 : 0.7, now, 0.03);
+                t.gain.gain.setTargetAtTime(t.muted ? 0 : t.vol, now, 0.03);
             }
             t.card.classList.toggle('muted', t.muted);
             const muteBtn = t.card.querySelector('.track-mute-btn');
@@ -606,7 +683,7 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  AUDIO SETUP (now connects 50 worklets)
+        //  AUDIO SETUP
         // ═══════════════════════════════════════════════════════════
         async function startAudio() {
             try {
@@ -672,6 +749,7 @@ registerProcessor('block-processor', BlockProcessor);
                     });
                     wn.port.postMessage({ key: 'blockDuration', value: state.blockDuration });
                     wn.port.postMessage({ key: 'invertBlocking', value: state.invertBlocking });
+                    wn.port.postMessage({ key: 'fadeStart', value: state.fadeStart });
                     wn.port.onmessage = (e) => {
                         if (e.data && typeof e.data.pos === 'number') {
                             t._gatePos = e.data.pos;
@@ -686,7 +764,7 @@ registerProcessor('block-processor', BlockProcessor);
                     t.analyser = an;
 
                     const gn = ctx.createGain();
-                    gn.gain.value = t.muted ? 0 : 0.7;
+                    gn.gain.value = t.muted ? 0 : t.vol;
                     t.gain = gn;
 
                     state.micNode.connect(wn);
@@ -803,6 +881,11 @@ registerProcessor('block-processor', BlockProcessor);
             broadcastParam('invertBlocking', val);
         }
 
+        function updateFadeStart(val) {
+            state.fadeStart = parseFloat(val);
+            broadcastParam('fadeStart', state.fadeStart);
+        }
+
         function updateDecayTime(val) {
             state.decayTime = val;
             dom.decayVal.textContent = val.toFixed(1) + 's';
@@ -830,14 +913,13 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  VISUALISATION (unchanged, just canvas height smaller)
+        //  VISUALISATION
         // ═══════════════════════════════════════════════════════════
         function drawIdleTrack(t) {
             const ctx = t.ctx;
             const w = t._displayW || 200;
             const h = t._displayH || 60;
             ctx.clearRect(0, 0, w, h);
-            // Center line
             ctx.strokeStyle = t.color + '33';
             ctx.lineWidth = 0.8;
             ctx.setLineDash([4, 8]);
@@ -846,7 +928,6 @@ registerProcessor('block-processor', BlockProcessor);
             ctx.lineTo(w, h / 2);
             ctx.stroke();
             ctx.setLineDash([]);
-            // Gate bar background
             const barY = h - 6;
             const barH = 4;
             ctx.fillStyle = 'rgba(255,255,255,0.04)';
@@ -867,7 +948,6 @@ registerProcessor('block-processor', BlockProcessor);
                     const an = t.analyser;
                     const bufLen = an.fftSize;
                     const timeData = new Uint8Array(bufLen);
-
                     an.getByteTimeDomainData(timeData);
 
                     let sum = 0;
@@ -890,7 +970,6 @@ registerProcessor('block-processor', BlockProcessor);
 
                     ctx.clearRect(0, 0, w, h);
 
-                    // Waveform
                     ctx.strokeStyle = t.muted ? '#444' : t.color;
                     ctx.lineWidth = t.muted ? 0.7 : 1.3;
                     ctx.shadowColor = t.muted ? 'transparent' : (t.color + '66');
@@ -908,7 +987,6 @@ registerProcessor('block-processor', BlockProcessor);
                     ctx.stroke();
                     ctx.shadowBlur = 0;
 
-                    // Gate bar
                     const barY = h - 7;
                     const barH = 4;
                     ctx.fillStyle = t.muted ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)';
@@ -984,6 +1062,7 @@ registerProcessor('block-processor', BlockProcessor);
 
             dom.durSlider.addEventListener('input', (e) => updateBlockDuration(parseInt(e.target.value) / 100));
             dom.invertBtn.addEventListener('click', () => updateInvertBlocking(!state.invertBlocking));
+            dom.fadeSelect.addEventListener('change', (e) => updateFadeStart(e.target.value));
             dom.decaySlider.addEventListener('input', (e) => updateDecayTime(parseFloat(e.target.value)));
             dom.dwSlider.addEventListener('input', (e) => updateDryWetMix(parseInt(e.target.value) / 100));
             dom.masterSlider.addEventListener('input', (e) => updateMasterVolume(parseInt(e.target.value) / 100));
@@ -1011,12 +1090,14 @@ registerProcessor('block-processor', BlockProcessor);
                 blockSamples: 50,
                 label: '',
                 card: null,
+                vol: 0.7,
                 _displayW: 200,
                 _displayH: 60,
                 _gatePos: 0,
                 _gateBs: 50,
                 _gateStatusEl: null,
                 _dbEl: null,
+                _volSlider: null,
             }));
             buildTrackUI();
             setupEventListeners();
@@ -1025,6 +1106,7 @@ registerProcessor('block-processor', BlockProcessor);
                 state.tracks.forEach(t => drawIdleTrack(t));
             }, 120);
             dom.invertBtn.classList.toggle('active', state.invertBlocking);
+            dom.fadeSelect.value = state.fadeStart;
         }
 
         init();
