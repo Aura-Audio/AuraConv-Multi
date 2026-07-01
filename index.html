@@ -195,7 +195,7 @@
         <header>
             <div class="title-block">
                 <h1>AuraConv‑Multi</h1>
-                <div class="subtitle">v4 · 50‑Track Block Filter · Per‑track volume &amp; Auto‑fade</div>
+                <div class="subtitle">v4 · 50‑Track Block Filter · Per‑track vol · AGC</div>
             </div>
             <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀</button>
         </header>
@@ -216,6 +216,14 @@
                     <option value="0.9">High</option>
                 </select>
             </label>
+            <label>AGC
+                <select id="agcSelect" class="small-select">
+                    <option value="0">Off</option>
+                    <option value="0.005" selected>Low</option>
+                    <option value="0.01">Med</option>
+                    <option value="0.02">High</option>
+                </select>
+            </label>
             <label>Decay
                 <input type="range" id="decaySlider" min="0.5" max="12" value="3" step="0.1">
                 <span class="global-val" id="decayVal">3.0s</span>
@@ -234,14 +242,14 @@
         <div class="track-grid" id="trackGrid"></div>
 
         <div class="footer-info">
-            Press <span class="kbd">Space</span> to toggle · 50 parallel gate tracks (10 → 1M samples) from one mic input
-            <br><small>Per‑track volume slider ⬤  Auto‑fade smooths gate edges (Off/Low/Med/High)</small>
+            Press <span class="kbd">Space</span> to toggle · 50 tracks (10 → 1M samples) · AGC keeps output steady (±10%)
+            <br><small>Per‑track volume slider ⬤  Auto‑fade smooths gate edges · AGC Off/Low/Med/High</small>
         </div>
     </div>
 
     <script>
         // ═══════════════════════════════════════════════════════════
-        //  AUDIOWORKLET PROCESSOR (FIXED gate logic + fade)
+        //  AUDIOWORKLET PROCESSOR (fixed gate + fade + AGC)
         // ═══════════════════════════════════════════════════════════
         const workletCode = `
 class BlockProcessor extends AudioWorkletProcessor {
@@ -250,13 +258,23 @@ class BlockProcessor extends AudioWorkletProcessor {
     this.blockSamples = options.processorOptions?.blockSamples || 50;
     this.blockDuration = 0.5;
     this.invertBlocking = false;
-    this.fadeStart = 1.0;           // 1 = no fade, 0.5 = fade begins halfway through open segment
+    this.fadeStart = 1.0;
+    // AGC
+    this.agcGain = 1.0;
+    this.agcSmoothing = 0;           // 0 = disabled
+    this.targetRms = 0.1;            // -20 dBFS
+    this.maxGain = this.targetRms * 1.1;   // +10%
+    this.minGain = this.targetRms * 0.9;   // -10%
     this.sampleCounter = 0;
     this.lastPosMsgTime = 0;
     this.port.onmessage = (e) => {
       if (e.data.key === 'blockDuration') this.blockDuration = e.data.value;
       if (e.data.key === 'invertBlocking') this.invertBlocking = e.data.value;
       if (e.data.key === 'fadeStart') this.fadeStart = e.data.value;
+      if (e.data.key === 'agcSmoothing') {
+        this.agcSmoothing = parseFloat(e.data.value);
+        if (this.agcSmoothing === 0) this.agcGain = 1.0; // reset
+      }
       if (e.data.key === 'reset') this.sampleCounter = 0;
     };
   }
@@ -273,33 +291,51 @@ class BlockProcessor extends AudioWorkletProcessor {
       this.sampleCounter++;
       const pos = this.sampleCounter % bs;
       const inZone = pos < blockLen;
-
-      // Correct gate: open = audio passes
-      const open = invert ? !inZone : inZone;   // normal: first part open; invert: second part open
+      const open = invert ? !inZone : inZone;
 
       if (!open) {
         outData[i] = 0;
         continue;
       }
 
-      // Compute smooth fade-out envelope inside the open segment
       let segStart, segEnd;
-      if (!invert) {                // open segment = 0 .. blockLen
-        segStart = 0;
-        segEnd = blockLen;
-      } else {                      // open segment = blockLen .. bs
-        segStart = blockLen;
-        segEnd = bs;
-      }
+      if (!invert) { segStart = 0; segEnd = blockLen; }
+      else        { segStart = blockLen; segEnd = bs; }
       const segLength = segEnd - segStart;
-      const distToEnd = segEnd - pos;                  // samples until the open segment ends
-      const fadeThreshold = segLength * (1 - fadeStart); // start fading this many samples before end
+      const distToEnd = segEnd - pos;
+      const fadeThreshold = segLength * (1 - fadeStart);
 
       let env = 1;
       if (fadeThreshold > 0 && distToEnd < fadeThreshold) {
-        env = distToEnd / fadeThreshold;               // linear ramp down to 0
+        env = distToEnd / fadeThreshold;
       }
       outData[i] = inData[i] * env;
+    }
+
+    // ─── AGC (applied after gating) ───
+    if (this.agcSmoothing > 0) {
+      // Measure RMS of the output block (only non‑zero samples)
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < outData.length; i++) {
+        const v = outData[i];
+        if (v !== 0) {
+          sum += v * v;
+          count++;
+        }
+      }
+      if (count > 0) {
+        const rms = Math.sqrt(sum / count);
+        let desiredGain = this.targetRms / (rms + 0.0001);
+        // Clamp to allowed range (±10% of target)
+        desiredGain = Math.min(this.maxGain, Math.max(this.minGain, desiredGain));
+        // Smooth
+        this.agcGain += this.agcSmoothing * (desiredGain - this.agcGain);
+      }
+      // Apply AGC gain
+      for (let i = 0; i < outData.length; i++) {
+        outData[i] *= this.agcGain;
+      }
     }
 
     if (currentTime - this.lastPosMsgTime >= 0.05) {
@@ -313,7 +349,7 @@ registerProcessor('block-processor', BlockProcessor);
 `;
 
         // ═══════════════════════════════════════════════════════════
-        //  TRACK DEFINITIONS – 50 tracks, log-spread 10 → 1M
+        //  TRACK DEFINITIONS – 50 tracks, log‑spread 10 → 1M
         // ═══════════════════════════════════════════════════════════
         const TRACK_BLOCK_SIZES = [
             10, 13, 16, 20, 26, 33, 42, 53, 67, 84,
@@ -323,7 +359,6 @@ registerProcessor('block-processor', BlockProcessor);
             122262, 154683, 195707, 247621, 313314, 396400, 501536, 634557, 802870, 1000000
         ];
 
-        // 50 distinct HSL colours
         const TRACK_COLORS = Array.from({ length: 50 }, (_, i) => {
             const hue = (i * 7.2) % 360;
             return `hsl(${hue}, 70%, 55%)`;
@@ -345,7 +380,8 @@ registerProcessor('block-processor', BlockProcessor);
             isRunning: false, workletModuleLoaded: false, tracks: [],
             masterGain: null, convolver: null, dryGain: null, wetGain: null,
             blockDuration: 0.5, invertBlocking: false,
-            fadeStart: 0.75,        // default Med
+            fadeStart: 0.75,          // default Med
+            agcSmoothing: 0.005,      // default Low
             decayTime: 3.0, dryWetMix: 0.4, masterVolume: 0.7,
             animFrameId: null, frameSkip: 0,
         };
@@ -355,6 +391,7 @@ registerProcessor('block-processor', BlockProcessor);
             trackGrid: $('trackGrid'), startBtn: $('startBtn'), warning: $('warning'),
             themeToggle: $('themeToggle'), durSlider: $('durSlider'), durVal: $('durVal'),
             invertBtn: $('invertBtn'), fadeSelect: $('fadeSelect'),
+            agcSelect: $('agcSelect'),
             decaySlider: $('decaySlider'), decayVal: $('decayVal'),
             dwSlider: $('dwSlider'), dwVal: $('dwVal'),
             masterSlider: $('masterSlider'), masterVal: $('masterVal'),
@@ -513,6 +550,7 @@ registerProcessor('block-processor', BlockProcessor);
                     wn.port.postMessage({ key: 'blockDuration', value: state.blockDuration });
                     wn.port.postMessage({ key: 'invertBlocking', value: state.invertBlocking });
                     wn.port.postMessage({ key: 'fadeStart', value: state.fadeStart });
+                    wn.port.postMessage({ key: 'agcSmoothing', value: state.agcSmoothing });
                     wn.port.onmessage = (e) => {
                         if (e.data && typeof e.data.pos === 'number') {
                             t._gatePos = e.data.pos;
@@ -629,6 +667,11 @@ registerProcessor('block-processor', BlockProcessor);
             broadcastParam('fadeStart', state.fadeStart);
         }
 
+        function updateAgcSmoothing(val) {
+            state.agcSmoothing = parseFloat(val);
+            broadcastParam('agcSmoothing', state.agcSmoothing);
+        }
+
         function updateDecayTime(val) {
             state.decayTime = val;
             dom.decayVal.textContent = val.toFixed(1) + 's';
@@ -656,7 +699,7 @@ registerProcessor('block-processor', BlockProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  VISUALISATION (fixed to match corrected gate logic)
+        //  VISUALISATION (unchanged)
         // ═══════════════════════════════════════════════════════════
         function drawIdleTrack(t) {
             const ctx = t.ctx, w = t._displayW || 200, h = t._displayH || 60;
@@ -695,13 +738,10 @@ registerProcessor('block-processor', BlockProcessor);
                     const blockLen = Math.max(0, Math.round(bs * state.blockDuration));
                     const pos = t._gatePos || 0;
                     const inZone = pos < blockLen;
-
-                    // Corrected gate-on logic (matches worklet)
                     const open = state.invertBlocking ? !inZone : inZone;
 
                     ctx.clearRect(0,0,w,h);
 
-                    // Waveform
                     ctx.strokeStyle = t.muted ? '#444' : t.color;
                     ctx.lineWidth = t.muted ? 0.7 : 1.3;
                     ctx.shadowColor = t.muted ? 'transparent' : (t.color + '66');
@@ -716,12 +756,10 @@ registerProcessor('block-processor', BlockProcessor);
                     ctx.stroke();
                     ctx.shadowBlur = 0;
 
-                    // Gate bar
                     const barY = h - 7, barH = 4;
                     ctx.fillStyle = t.muted ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.05)';
                     ctx.beginPath(); ctx.roundRect(0, barY, w, barH, 2); ctx.fill();
 
-                    // Active zone highlight (where gate is open)
                     let activeStart, activeEnd;
                     if (!state.invertBlocking) {
                         activeStart = 0;
@@ -736,7 +774,6 @@ registerProcessor('block-processor', BlockProcessor);
                         ctx.beginPath(); ctx.roundRect(activeStart, barY, activeW, barH, 2); ctx.fill();
                     }
 
-                    // Position indicator
                     const posX = (pos / bs) * w;
                     ctx.fillStyle = open ? t.color : 'rgba(255,255,255,0.25)';
                     ctx.shadowColor = open ? t.color : 'transparent';
@@ -791,6 +828,7 @@ registerProcessor('block-processor', BlockProcessor);
             dom.durSlider.addEventListener('input', (e) => updateBlockDuration(parseInt(e.target.value) / 100));
             dom.invertBtn.addEventListener('click', () => updateInvertBlocking(!state.invertBlocking));
             dom.fadeSelect.addEventListener('change', (e) => updateFadeStart(e.target.value));
+            dom.agcSelect.addEventListener('change', (e) => updateAgcSmoothing(e.target.value));
             dom.decaySlider.addEventListener('input', (e) => updateDecayTime(parseFloat(e.target.value)));
             dom.dwSlider.addEventListener('input', (e) => updateDryWetMix(parseInt(e.target.value) / 100));
             dom.masterSlider.addEventListener('input', (e) => updateMasterVolume(parseInt(e.target.value) / 100));
@@ -819,8 +857,9 @@ registerProcessor('block-processor', BlockProcessor);
             }, 120);
             dom.invertBtn.classList.toggle('active', state.invertBlocking);
             dom.fadeSelect.value = state.fadeStart;
+            dom.agcSelect.value = state.agcSmoothing;
         }
         init();
     </script>
 </body>
-</html>
+    </html>
