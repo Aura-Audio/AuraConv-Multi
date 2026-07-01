@@ -196,7 +196,7 @@
 
         <div class="global-controls" id="globalControls">
             <label>Trim
-                <input type="range" id="trimSlider" min="0" max="200" value="100">
+                <input type="range" id="trimSlider" min="0" max="1000" value="100">
                 <span class="global-val" id="trimVal">100%</span>
             </label>
             <label>Dur
@@ -236,7 +236,7 @@
 
         <div class="footer-info">
             Press <span class="kbd">Space</span> to toggle · 50 tracks (10 → 1M samples)
-            <br><small>Input, per‑track, and master levels are fully automatic. Manual Trim slider for extra gain.</small>
+            <br><small>Input, per‑track, and master levels are fully automatic. Manual Trim slider (0‑1000%) for extra gain.</small>
         </div>
     </div>
 
@@ -332,7 +332,7 @@ class InputAgcProcessor extends AudioWorkletProcessor {
     super();
     this.agcGain = 1.0;
     this.smoothing = 0.01;
-    this.targetRms = 0.1;    // -20 dBFS
+    this.targetRms = 0.1;
     this.maxGain = this.targetRms * 1.1;
     this.minGain = this.targetRms * 0.9;
   }
@@ -389,7 +389,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         const state = {
             audioContext: null, micStream: null, micNode: null,
             inputAgcNode: null,
-            inputTrimGain: null,      // new manual trim node
+            inputTrimGain: null,
             isRunning: false,
             workletModuleLoaded: false,
             tracks: [],
@@ -401,7 +401,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
             fadeStart: 0.75,
             agcSmoothing: 0.005,
             decayTime: 3.0, dryWetMix: 0.4,
-            inputTrimValue: 1.0,      // default 100%
+            inputTrimValue: 1.0,
             animFrameId: null, frameSkip: 0,
         };
 
@@ -419,7 +419,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         };
 
         // ═══════════════════════════════════════════════════════════
-        //  BUILD TRACK UI (no volume slider, just mute)
+        //  BUILD TRACK UI
         // ═══════════════════════════════════════════════════════════
         function buildTrackUI() {
             dom.trackGrid.innerHTML = '';
@@ -501,7 +501,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  AUDIO SETUP (with manual trim after auto AGC)
+        //  AUDIO SETUP (with Trim slider up to 1000%)
         // ═══════════════════════════════════════════════════════════
         async function startAudio() {
             try {
@@ -532,20 +532,20 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 });
                 state.micNode = ctx.createMediaStreamSource(state.micStream);
 
-                // 1) Input AGC (auto‑levels to -20 dBFS)
+                // Input AGC
                 state.inputAgcNode = new AudioWorkletNode(ctx, 'input-agc-processor', {
                     numberOfInputs: 1, numberOfOutputs: 1,
                     outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit'
                 });
                 state.micNode.connect(state.inputAgcNode);
 
-                // 2) Manual Trim gain (after auto AGC)
+                // Manual Trim gain (0‑10x)
                 state.inputTrimGain = ctx.createGain();
-                state.inputTrimGain.gain.value = state.inputTrimValue;   // 0‑2
+                state.inputTrimGain.gain.value = state.inputTrimValue;
                 state.inputAgcNode.connect(state.inputTrimGain);
-                const leveledAndTrimmed = state.inputTrimGain;   // source for tracks
+                const leveledAndTrimmed = state.inputTrimGain;
 
-                // 3) Master gain (fixed 0.7)
+                // Master gain (fixed)
                 state.masterGain = ctx.createGain();
                 state.masterGain.gain.value = 0.7;
 
@@ -586,7 +586,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 state.masterGain.connect(state.convolver);
                 state.convolver.connect(state.wetGain);
 
-                // 4) Per‑track worklets (50)
+                // Per‑track nodes
                 for (let i = 0; i < TRACK_BLOCK_SIZES.length; i++) {
                     const t = state.tracks[i];
                     const bs = TRACK_BLOCK_SIZES[i];
@@ -730,14 +730,14 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  GLOBAL PARAM UPDATES
+        //  GLOBAL PARAM UPDATES (Trim up to 10x)
         // ═══════════════════════════════════════════════════════════
         function broadcastParam(key, value) {
             state.tracks.forEach(t => { if (t.worklet) t.worklet.port.postMessage({ key, value }); });
         }
 
         function updateInputTrim(val) {
-            state.inputTrimValue = val;   // 0..2
+            state.inputTrimValue = val;   // 0..10
             dom.trimVal.textContent = Math.round(val * 100) + '%';
             if (state.inputTrimGain && state.audioContext) {
                 state.inputTrimGain.gain.setTargetAtTime(val, state.audioContext.currentTime, 0.03);
@@ -801,7 +801,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  VISUALISATION (unchanged)
+        //  VISUALISATION
         // ═══════════════════════════════════════════════════════════
         function drawIdleTrack(t) {
             const ctx = t.ctx, w = t._displayW || 200, h = t._displayH || 60;
@@ -962,10 +962,10 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
             dom.fadeSelect.value = state.fadeStart;
             dom.agcSelect.value = state.agcSmoothing;
             dom.masterCompBtn.classList.add('active');
-            dom.trimSlider.value = 100;   // 100%
+            dom.trimSlider.value = 100;   // 100% default
             dom.trimVal.textContent = '100%';
         }
         init();
     </script>
 </body>
-                    </html>
+    </html>
