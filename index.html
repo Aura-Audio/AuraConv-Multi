@@ -195,6 +195,10 @@
         <div class="warning" id="warning"></div>
 
         <div class="global-controls" id="globalControls">
+            <label>Trim
+                <input type="range" id="trimSlider" min="0" max="200" value="100">
+                <span class="global-val" id="trimVal">100%</span>
+            </label>
             <label>Dur
                 <input type="range" id="durSlider" min="1" max="99" value="50">
                 <span class="global-val" id="durVal">50%</span>
@@ -232,7 +236,7 @@
 
         <div class="footer-info">
             Press <span class="kbd">Space</span> to toggle · 50 tracks (10 → 1M samples)
-            <br><small>Input, per‑track, and master levels are fully automatic. Just play!</small>
+            <br><small>Input, per‑track, and master levels are fully automatic. Manual Trim slider for extra gain.</small>
         </div>
     </div>
 
@@ -295,7 +299,6 @@ class BlockProcessor extends AudioWorkletProcessor {
       outData[i] = inData[i] * env;
     }
 
-    // Per‑track AGC (after gate)
     if (this.agcSmoothing > 0) {
       let sum = 0, count = 0;
       for (let i = 0; i < outData.length; i++) {
@@ -328,7 +331,7 @@ class InputAgcProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.agcGain = 1.0;
-    this.smoothing = 0.01;   // moderate attack
+    this.smoothing = 0.01;
     this.targetRms = 0.1;    // -20 dBFS
     this.maxGain = this.targetRms * 1.1;
     this.minGain = this.targetRms * 0.9;
@@ -338,7 +341,6 @@ class InputAgcProcessor extends AudioWorkletProcessor {
     const outData = outputs[0]?.[0];
     if (!inData || !outData) return true;
 
-    // Measure RMS
     let sum = 0;
     for (let i = 0; i < inData.length; i++) {
       sum += inData[i] * inData[i];
@@ -386,18 +388,20 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         // ═══════════════════════════════════════════════════════════
         const state = {
             audioContext: null, micStream: null, micNode: null,
-            inputAgcNode: null,       // Input AGC worklet
+            inputAgcNode: null,
+            inputTrimGain: null,      // new manual trim node
             isRunning: false,
             workletModuleLoaded: false,
             tracks: [],
             masterGain: null, convolver: null, dryGain: null, wetGain: null,
-            masterCompressor: null, masterCompOn: true,   // default ON
-            masterAutoGain: null,     // final auto‑level gain node
-            masterAutoTarget: 0.15,   // target RMS ~ -16 dBFS
+            masterCompressor: null, masterCompOn: true,
+            masterAutoGain: null,
+            masterAutoTarget: 0.15,
             blockDuration: 0.5, invertBlocking: false,
             fadeStart: 0.75,
             agcSmoothing: 0.005,
             decayTime: 3.0, dryWetMix: 0.4,
+            inputTrimValue: 1.0,      // default 100%
             animFrameId: null, frameSkip: 0,
         };
 
@@ -405,6 +409,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         const dom = {
             trackGrid: $('trackGrid'), startBtn: $('startBtn'), warning: $('warning'),
             themeToggle: $('themeToggle'),
+            trimSlider: $('trimSlider'), trimVal: $('trimVal'),
             durSlider: $('durSlider'), durVal: $('durVal'),
             invertBtn: $('invertBtn'), fadeSelect: $('fadeSelect'),
             agcSelect: $('agcSelect'),
@@ -414,7 +419,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         };
 
         // ═══════════════════════════════════════════════════════════
-        //  BUILD TRACK UI (no volume slider, just mute button)
+        //  BUILD TRACK UI (no volume slider, just mute)
         // ═══════════════════════════════════════════════════════════
         function buildTrackUI() {
             dom.trackGrid.innerHTML = '';
@@ -467,7 +472,6 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
             t.muted = !t.muted;
             if (t.gain && state.audioContext) {
                 const now = state.audioContext.currentTime;
-                // when muted, set gain to 0; otherwise use fixed track gain (0.02)
                 t.gain.gain.setTargetAtTime(t.muted ? 0 : 0.02, now, 0.03);
             }
             t.card.classList.toggle('muted', t.muted);
@@ -497,7 +501,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  AUDIO SETUP (automated mic, track, master levels)
+        //  AUDIO SETUP (with manual trim after auto AGC)
         // ═══════════════════════════════════════════════════════════
         async function startAudio() {
             try {
@@ -528,15 +532,20 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 });
                 state.micNode = ctx.createMediaStreamSource(state.micStream);
 
-                // 1) Input AGC worklet (auto‑levels mic to -20 dBFS)
+                // 1) Input AGC (auto‑levels to -20 dBFS)
                 state.inputAgcNode = new AudioWorkletNode(ctx, 'input-agc-processor', {
                     numberOfInputs: 1, numberOfOutputs: 1,
                     outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit'
                 });
                 state.micNode.connect(state.inputAgcNode);
-                const leveledMic = state.inputAgcNode;   // this is the auto‑leveled source for tracks
 
-                // 2) Master gain (now fixed at 0.7, no slider)
+                // 2) Manual Trim gain (after auto AGC)
+                state.inputTrimGain = ctx.createGain();
+                state.inputTrimGain.gain.value = state.inputTrimValue;   // 0‑2
+                state.inputAgcNode.connect(state.inputTrimGain);
+                const leveledAndTrimmed = state.inputTrimGain;   // source for tracks
+
+                // 3) Master gain (fixed 0.7)
                 state.masterGain = ctx.createGain();
                 state.masterGain.gain.value = 0.7;
 
@@ -548,7 +557,6 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 state.convolver = ctx.createConvolver();
                 state.convolver.buffer = createImpulseResponse(state.decayTime);
 
-                // Master compressor (toggle, default ON)
                 state.masterCompressor = ctx.createDynamicsCompressor();
                 state.masterCompressor.threshold.value = -24;
                 state.masterCompressor.knee.value = 6;
@@ -556,17 +564,13 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 state.masterCompressor.attack.value = 0.005;
                 state.masterCompressor.release.value = 0.050;
 
-                // Final auto‑level gain node
                 state.masterAutoGain = ctx.createGain();
-                state.masterAutoGain.gain.value = 1.0;   // initial, will be adjusted by master AGC
+                state.masterAutoGain.gain.value = 1.0;
 
-                // Merge dry + wet into a single node, then through optional compressor, then auto‑gain, then destination
                 const merger = ctx.createGain();
                 state.dryGain.connect(merger);
                 state.wetGain.connect(merger);
 
-                // Build chain: merger → (compressor if on) → autoGain → destination
-                // We'll route dynamically based on masterCompOn state.
                 state._merger = merger;
                 if (state.masterCompOn) {
                     merger.connect(state.masterCompressor);
@@ -582,7 +586,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 state.masterGain.connect(state.convolver);
                 state.convolver.connect(state.wetGain);
 
-                // 3) Per‑track worklets (50)
+                // 4) Per‑track worklets (50)
                 for (let i = 0; i < TRACK_BLOCK_SIZES.length; i++) {
                     const t = state.tracks[i];
                     const bs = TRACK_BLOCK_SIZES[i];
@@ -609,13 +613,11 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                     an.fftSize = 128; an.smoothingTimeConstant = 0.55;
                     t.analyser = an;
 
-                    // Fixed track gain (very low to avoid clipping with 50 tracks)
                     const gn = ctx.createGain();
-                    gn.gain.value = t.muted ? 0 : 0.02;   // -34 dB
+                    gn.gain.value = t.muted ? 0 : 0.02;
                     t.gain = gn;
 
-                    // Connect: leveledMic → worklet → analyser → trackGain → masterGain
-                    leveledMic.connect(wn);
+                    leveledAndTrimmed.connect(wn);
                     wn.connect(an);
                     an.connect(gn);
                     gn.connect(state.masterGain);
@@ -630,7 +632,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 dom.warning.classList.remove('show');
                 updateAllMuteButtons();
                 startVisualization();
-                startMasterAutoLevel();   // starts master RMS → gain adjustment
+                startMasterAutoLevel();
             } catch (err) {
                 console.error('Audio setup error:', err);
                 dom.warning.classList.add('show');
@@ -649,11 +651,11 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 t.worklet = null; t.analyser = null; t.gain = null; t._gatePos = 0;
             });
             [state.masterGain, state.dryGain, state.wetGain, state.convolver,
-             state.inputAgcNode, state.masterCompressor, state.masterAutoGain].forEach(n => {
+             state.inputAgcNode, state.inputTrimGain, state.masterCompressor, state.masterAutoGain].forEach(n => {
                 if (n) { try { n.disconnect(); } catch {} }
             });
             state.masterGain = state.dryGain = state.wetGain = state.convolver = null;
-            state.inputAgcNode = state.masterCompressor = state.masterAutoGain = null;
+            state.inputAgcNode = state.inputTrimGain = state.masterCompressor = state.masterAutoGain = null;
             if (state.micStream) { state.micStream.getTracks().forEach(t => t.stop()); state.micStream = null; }
             if (state.micNode) { try { state.micNode.disconnect(); } catch {} state.micNode = null; }
 
@@ -695,23 +697,19 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
             });
         }
 
-        // ── Master auto‑level (read from destination and adjust masterAutoGain) ──
         function startMasterAutoLevel() {
-            // We'll use a separate analyser on the final output (after masterAutoGain) to measure RMS.
-            // Since we can't easily connect to destination before it plays, we connect an analyser to masterAutoGain output
-            // (which is already connected to destination).
             const ctx = state.audioContext;
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 256;
             analyser.smoothingTimeConstant = 0.3;
-            state.masterAutoGain.connect(analyser);   // extra connection, doesn't harm
+            state.masterAutoGain.connect(analyser);
             state._masterAnalyser = analyser;
 
-            const targetRms = state.masterAutoTarget; // 0.15 linear ~ -16.5 dBFS
+            const targetRms = state.masterAutoTarget;
             const maxGain = targetRms * 1.1;
             const minGain = targetRms * 0.9;
             let currentGain = 1.0;
-            const smoothing = 0.02;   // slow, gentle
+            const smoothing = 0.02;
 
             state._masterLevelTimer = setInterval(() => {
                 if (!state.isRunning || !analyser) return;
@@ -732,10 +730,18 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  GLOBAL PARAM UPDATES (no input gain, no master volume)
+        //  GLOBAL PARAM UPDATES
         // ═══════════════════════════════════════════════════════════
         function broadcastParam(key, value) {
             state.tracks.forEach(t => { if (t.worklet) t.worklet.port.postMessage({ key, value }); });
+        }
+
+        function updateInputTrim(val) {
+            state.inputTrimValue = val;   // 0..2
+            dom.trimVal.textContent = Math.round(val * 100) + '%';
+            if (state.inputTrimGain && state.audioContext) {
+                state.inputTrimGain.gain.setTargetAtTime(val, state.audioContext.currentTime, 0.03);
+            }
         }
 
         function updateBlockDuration(val) {
@@ -921,6 +927,7 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
                 }
             });
 
+            dom.trimSlider.addEventListener('input', (e) => updateInputTrim(parseInt(e.target.value) / 100));
             dom.durSlider.addEventListener('input', (e) => updateBlockDuration(parseInt(e.target.value) / 100));
             dom.invertBtn.addEventListener('click', () => updateInvertBlocking(!state.invertBlocking));
             dom.fadeSelect.addEventListener('change', (e) => updateFadeStart(e.target.value));
@@ -954,9 +961,11 @@ registerProcessor('input-agc-processor', InputAgcProcessor);
             dom.invertBtn.classList.toggle('active', state.invertBlocking);
             dom.fadeSelect.value = state.fadeStart;
             dom.agcSelect.value = state.agcSmoothing;
-            dom.masterCompBtn.classList.add('active');   // default ON
+            dom.masterCompBtn.classList.add('active');
+            dom.trimSlider.value = 100;   // 100%
+            dom.trimVal.textContent = '100%';
         }
         init();
     </script>
 </body>
-                </html>
+                    </html>
