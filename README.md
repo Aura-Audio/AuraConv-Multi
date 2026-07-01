@@ -1,4 +1,4 @@
-# AuraConv‑Multi — 12‑Track Live Block Filter
+# AuraConv‑Multi v3 — 50‑Track Live Block Filter
 
 <p align="center">
   <img src="https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white" alt="HTML5">
@@ -6,10 +6,10 @@
   <img src="https://img.shields.io/badge/Web_Audio_API-4A154B?logo=webaudio&logoColor=white" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-8A2BE2" alt="AudioWorklet">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT">
-  <img src="https://img.shields.io/badge/version-2.0.0-brightgreen" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.0.0-brightgreen" alt="Version">
 </p>
 
-**AuraConv‑Multi** is a real‑time, multi‑track audio processor that splits a single microphone input into **12 parallel channels**, each processed with a different fixed‑length gate (block size from 10 samples up to 1,000,000 samples).  
+**AuraConv‑Multi v3** is a real‑time, multi‑track audio processor that splits a single microphone input into **50 parallel channels**, each with a unique block‑size gate (from 10 samples up to 1 000 000 samples).  
 All tracks are mixed through a global convolution reverb, and every track has a **dual‑layer visualiser** (waveform + gate position indicator) so you can see exactly how the block‑size filtering is shaping the sound.
 
 No dependencies – just open the single HTML file in any modern browser and start experimenting.
@@ -20,12 +20,12 @@ No dependencies – just open the single HTML file in any modern browser and sta
 
 ## 🚀 Overview
 
-- **12 independent gate tracks** fed from one live microphone source.
-- Each track has a preset block size: 10, 50, 100, 500, 1k, 5k, 10k, 50k, 100k, 250k, 500k, 1M samples.
+- **50 independent gate tracks** fed from one live microphone source.
+- Each track has a log‑spread block size: 10, 13, 16, 20, …, 501k, 634k, 802k, 1M samples.
 - **Global controls**: block duration, invert mode, convolution reverb (decay & dry/wet), master volume.
 - **Per‑track mute** with smooth volume ramping.
 - **Live visualisation**: real‑time waveform, gate‑overlay bar showing active/silent zones, moving dot for current position, and dB level meter.
-- **Dark/light theme** (auto‑saved to localStorage).
+- **Dark/light theme** (auto‑saved to localStorage, keyed for v3).
 - **Keyboard shortcut** (`Space`) to start/stop audio.
 - **Single‑file** – zero build tools, zero dependencies.
 
@@ -34,23 +34,24 @@ No dependencies – just open the single HTML file in any modern browser and sta
 ## 🎛️ Features
 
 ### 🎤 Multi‑Track Live Processing
-- 12 parallel tracks, each with its own `AudioWorklet` processor.
-- Block sizes span from ultra‑fast 10‑sample chops to 1M‑sample (~22.7 s) drones.
+- **50 parallel tracks**, each with its own `AudioWorklet` processor.
+- Block sizes span from ultra‑fast 10‑sample chops (0.23 ms latency) to 1M‑sample drones (~22.7 s latency).
+- Finely graded logarithmic spread – perfect for rhythmic, textural, and ambient exploration.
 - All tracks share a single microphone input – no need for complex routing.
 
 ### ✂️ Gate Controls (Global)
 - **Block Duration** (1–99%) – percentage of each block that passes audio.
 - **Invert Blocking** – swap the silent and active regions, turning a gate into a chopper.
-- Parameters are broadcast instantly to all worklets.
+- Parameters are broadcast instantly to all 50 worklets.
 
 ### 🌌 Convolution Reverb
-- Generated noise‑based impulse response with adjustable **decay** (0.5–12 s).
+- Generated noise‑based impulse response with adjustable **decay** (0.5–12 s).
 - **Dry/Wet mix** slider to blend the direct and reverberant signals.
 - The impulse response is regenerated whenever decay changes – no clicks or glitches.
 
 ### 📊 Dual‑Layer Track Visualisation
 Each track card displays:
-- **Real‑time waveform** drawn in the track’s colour.
+- **Real‑time waveform** drawn in the track’s unique HSL colour.
 - **Gate overlay bar** at the bottom that shows:
   - Highlighted active zone (audio passing).
   - A moving dot that tracks the current position inside the block.
@@ -64,8 +65,9 @@ Each track card displays:
 - **Invert** toggle changes appearance and updates all tracks simultaneously.
 
 ### 💡 Usability
-- Fully responsive grid layout (3×4 on desktop, 2×2 on mobile).
-- Theme toggle persists between sessions.
+- Fully responsive grid layout (3 columns on desktop, 2 on mobile).
+- Compact track cards with readable labels (e.g., `1.1k`, `25k`, `500k`, `1M`).
+- Theme toggle persists between sessions (isolated `localStorage` key for v3).
 - Graceful error handling for microphone access.
 
 ---
@@ -90,6 +92,16 @@ Each track card displays:
    > Use a simple server like `python -m http.server` if opening directly doesn’t work.
 3. Click **“Start Audio”** and allow microphone access when prompted.
 4. Play with the global sliders and mute/unmute tracks to explore the multi‑layered gate effects.
+
+---
+
+## 📈 What’s new in v3
+- **50 tracks** (up from 12) with a logarithmic block‑size progression from 10 to 1 000 000 samples.
+- 50 distinct HSL colours for better visual tracking.
+- Compact track cards and label formatting (e.g., `1.1k`, `25k`, `500k`, `1M`).
+- Optimised canvas height (60 px min) to display all 50 tracks without excessive scrolling.
+- Separate theme storage key (`auraconv-multi-v3-theme`) to avoid conflicts with v2.
+- Under the hood: all 50 worklets run in parallel, performance remains practical on modern hardware.
 
 ---
 
